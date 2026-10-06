@@ -40,7 +40,11 @@ nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 <body>
 <main>
 
-<section id="login" hidden>
+<script>
+addEventListener("error", function (e) { var d = document.getElementById("err"); if (d) d.textContent = "Erreur de chargement : " + (e.message || "ouvrez la console (F12)"); });
+addEventListener("unhandledrejection", function (e) { var d = document.getElementById("err"); if (d) d.textContent = "Erreur : " + ((e.reason && e.reason.message) || e.reason); });
+</script>
+<section id="login">
   <h1>Budget de la maison</h1>
   <p class="mute">Connectez-vous pour accéder à vos dépenses.</p>
   <div class="row">

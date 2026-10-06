@@ -31,6 +31,9 @@ li .amt{font-variant-numeric:tabular-nums;white-space:nowrap}
 li button{padding:3px 9px;margin-left:8px}
 .cat{display:flex;justify-content:space-between;padding:4px 0}
 #err{color:var(--bad);min-height:1.4em;margin:8px 0 0}
+nav{display:flex;gap:6px;margin-top:16px}
+nav button{flex:1;background:none;color:var(--mute);border-color:var(--line)}
+nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -57,6 +60,12 @@ li button{padding:3px 9px;margin-left:8px}
     </div>
   </header>
 
+  <nav>
+    <button class="on" data-t="month">Mois en cours</button>
+    <button data-t="fixed">Dépenses fixes</button>
+  </nav>
+
+  <div id="tabMonth">
   <section>
     <div class="mute">Il vous reste</div>
     <div class="big" id="left">0 €</div>
@@ -93,6 +102,34 @@ li button{padding:3px 9px;margin-left:8px}
     <ul id="list"></ul>
     <p id="empty" class="mute">Aucune dépense. Ajoutez la première ci-dessus.</p>
   </section>
+  </div>
+
+  <div id="tabFixed" hidden>
+    <section>
+      <div class="mute">Total des dépenses fixes par mois</div>
+      <div class="big" id="fixedTotal">0 €</div>
+      <p class="mute">Ces dépenses sont déduites automatiquement du budget de chaque mois, à partir du mois de départ choisi.</p>
+    </section>
+    <section>
+      <h2>Ajouter une dépense fixe</h2>
+      <div class="row">
+        <input id="flabel" placeholder="Libellé (ex. loyer, internet)">
+        <input id="famount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+        <select id="fcategory">
+          <option>Logement</option><option>Énergie</option><option>Abonnements</option>
+          <option>Assurances</option><option>Transport</option><option>Enfants</option><option>Autre</option>
+        </select>
+        <input id="fday" type="number" min="1" max="31" placeholder="Jour du mois" aria-label="Jour du prélèvement">
+        <input id="fstart" type="month" aria-label="À partir du mois">
+        <button id="btnFixed">Ajouter</button>
+      </div>
+    </section>
+    <section>
+      <h2>Vos dépenses fixes</h2>
+      <ul id="fixedList"></ul>
+      <p id="fixedEmpty" class="mute">Aucune dépense fixe. Ajoutez votre loyer ou vos abonnements ci-dessus.</p>
+    </section>
+  </div>
 </div>
 
 </main>
@@ -102,17 +139,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-
+// 👉 Remplacez par la config de VOTRE projet (Console Firebase > Paramètres du projet > Vos applications > Web)
 const firebaseConfig = {
-  apiKey: "AIzaSyAPG5tGC4jbJVSwibqeqeJDDSQh8jiXip0",
-  authDomain: "gestion-budget-7e4dc.firebaseapp.com",
-  projectId: "gestion-budget-7e4dc",
-  storageBucket: "gestion-budget-7e4dc.firebasestorage.app",
-  messagingSenderId: "718863589226",
-  appId: "1:718863589226:web:df33c18ac3635c656a0f13",
-
+  apiKey: "VOTRE_API_KEY",
+  authDomain: "VOTRE_PROJET.firebaseapp.com",
+  projectId: "VOTRE_PROJET",
+  appId: "VOTRE_APP_ID"
 };
-
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -121,8 +154,9 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [];
+let unsubs = [], budget = 0, expenses = [], fixed = [];
 $("month").value = today.slice(0, 7);
+$("fstart").value = today.slice(0, 7);
 $("date").value = today;
 
 onAuthStateChanged(auth, user => {
@@ -149,6 +183,10 @@ function listen() {
     $("budget").value = budget || "";
     render();
   }));
+  unsubs.push(onSnapshot(collection(db, "recurring"), s => {
+    fixed = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  }));
   unsubs.push(onSnapshot(query(collection(db, "expenses"), where("month", "==", m)), s => {
     expenses = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.date.localeCompare(a.date));
     render();
@@ -169,17 +207,20 @@ $("btnAdd").onclick = async () => {
 };
 
 function render() {
-  const spent = expenses.reduce((t, e) => t + e.amount, 0);
+  const m = $("month").value;
+  const act = fixed.filter(f => (f.start || "") <= m);
+  const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
+  const spent = expenses.reduce((t, e) => t + e.amount, 0) + fixedTotal;
   const left = budget - spent;
   const pct = budget > 0 ? Math.min(100, spent / budget * 100) : 0;
   $("left").textContent = eur(left);
   $("left").style.color = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("fill").style.width = pct + "%";
   $("fill").style.background = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
-  $("sum").textContent = `${eur(spent)} dépensés sur ${eur(budget)}`;
+  $("sum").textContent = `${eur(spent)} dépensés sur ${eur(budget)}` + (fixedTotal ? ` (dont ${eur(fixedTotal)} de dépenses fixes)` : "");
 
   const byCat = {};
-  expenses.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
+  [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
     .map(([c, v]) => `<div class="cat"><span>${c}</span><b>${eur(v)}</b></div>`).join("") || "Aucune dépense ce mois-ci.";
 
@@ -199,7 +240,44 @@ function render() {
     b.onclick = () => confirm("Supprimer cette dépense ?") && deleteDoc(doc(db, "expenses", e.id));
     r.append(b); li.append(l, r); $("list").append(li);
   });
+  renderFixed();
 }
+
+function renderFixed() {
+  $("fixedTotal").textContent = eur(fixed.reduce((t, f) => t + f.amount, 0));
+  $("fixedEmpty").hidden = fixed.length > 0;
+  $("fixedList").innerHTML = "";
+  fixed.slice().sort((a, b) => (a.day || 0) - (b.day || 0)).forEach(f => {
+    const li = document.createElement("li");
+    const l = document.createElement("div");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    l.children[0].textContent = f.label;
+    l.children[1].textContent = `${f.category} · le ${f.day || "?"} du mois · depuis ${f.start || "toujours"}`;
+    const r = document.createElement("div");
+    r.innerHTML = `<span class="amt">${eur(f.amount)}</span>`;
+    const b = document.createElement("button");
+    b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + f.label);
+    b.onclick = () => confirm("Supprimer cette dépense fixe ? Elle ne sera plus déduite des mois, passés comme futurs.") && deleteDoc(doc(db, "recurring", f.id));
+    r.append(b); li.append(l, r); $("fixedList").append(li);
+  });
+}
+
+$("btnFixed").onclick = async () => {
+  const label = $("flabel").value.trim(), amount = parseFloat($("famount").value);
+  const day = parseInt($("fday").value) || 1, start = $("fstart").value;
+  if (!label || !(amount > 0) || !start) return;
+  await addDoc(collection(db, "recurring"), {
+    label, amount, day: Math.min(31, Math.max(1, day)), start,
+    category: $("fcategory").value, by: auth.currentUser.email, created: serverTimestamp()
+  });
+  $("flabel").value = ""; $("famount").value = ""; $("fday").value = "";
+};
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  $("tabMonth").hidden = b.dataset.t !== "month";
+  $("tabFixed").hidden = b.dataset.t !== "fixed";
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget de la maison</title>
+<style>
+:root{--bg:#eef2ef;--card:#fff;--ink:#1d2b26;--mute:#6b7a73;--line:#d9e1dc;--ok:#1f6f55;--warn:#c47a12;--bad:#b3392f}
+@media(prefers-color-scheme:dark){:root{--bg:#141a17;--card:#1c2420;--ink:#e6efe9;--mute:#93a39b;--line:#2b3731;--ok:#4fc29a;--warn:#e0a443;--bad:#e8736a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,'Iowan Old Style',serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.4rem;margin:0}
+h2{font-size:1.05rem;margin:0 0 12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-top:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+input,select,button{font:inherit;color:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--bg);min-width:0}
+button{cursor:pointer;background:var(--ok);color:#fff;border-color:var(--ok)}
+button.ghost{background:none;color:var(--mute);border-color:var(--line)}
+:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 130px}
+.big{font-size:2.6rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.bar{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin:12px 0 6px}
+.bar i{display:block;height:100%;background:var(--ok);width:0}
+.mute{color:var(--mute);font-size:.9rem}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);align-items:center}
+li:first-child{border-top:0}
+li .amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+li button{padding:3px 9px;margin-left:8px}
+.cat{display:flex;justify-content:space-between;padding:4px 0}
+#err{color:var(--bad);min-height:1.4em;margin:8px 0 0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+
+<section id="login" hidden>
+  <h1>Budget de la maison</h1>
+  <p class="mute">Connectez-vous pour accéder à vos dépenses.</p>
+  <div class="row">
+    <input id="email" type="email" placeholder="Email" autocomplete="username">
+    <input id="pwd" type="password" placeholder="Mot de passe" autocomplete="current-password">
+    <button id="btnLogin">Se connecter</button>
+  </div>
+  <p id="err" role="alert"></p>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <h1>Budget de la maison</h1>
+    <div class="row" style="flex:0 1 auto">
+      <input id="month" type="month" aria-label="Mois">
+      <button class="ghost" id="btnOut">Déconnexion</button>
+    </div>
+  </header>
+
+  <section>
+    <div class="mute">Il vous reste</div>
+    <div class="big" id="left">0 €</div>
+    <div class="bar"><i id="fill"></i></div>
+    <div class="mute" id="sum"></div>
+    <div class="row" style="margin-top:14px">
+      <input id="budget" type="number" step="0.01" min="0" placeholder="Budget du mois (€)">
+      <button id="btnBudget">Enregistrer le budget</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ajouter une dépense</h2>
+    <div class="row">
+      <input id="label" placeholder="Libellé (ex. courses)">
+      <input id="amount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+      <select id="category">
+        <option>Courses</option><option>Logement</option><option>Énergie</option>
+        <option>Transport</option><option>Santé</option><option>Loisirs</option>
+        <option>Enfants</option><option>Autre</option>
+      </select>
+      <input id="date" type="date">
+      <button id="btnAdd">Ajouter</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Par catégorie</h2>
+    <div id="cats" class="mute">Aucune dépense ce mois-ci.</div>
+  </section>
+
+  <section>
+    <h2>Dépenses du mois</h2>
+    <ul id="list"></ul>
+    <p id="empty" class="mute">Aucune dépense. Ajoutez la première ci-dessus.</p>
+  </section>
+</div>
+
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// 👉 Remplacez par la config de VOTRE projet (Console Firebase > Paramètres du projet > Vos applications > Web)
+const firebaseConfig = {
+  apiKey: "VOTRE_API_KEY",
+  authDomain: "VOTRE_PROJET.firebaseapp.com",
+  projectId: "VOTRE_PROJET",
+  appId: "VOTRE_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = id => document.getElementById(id);
+const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+const today = new Date().toISOString().slice(0, 10);
+
+let unsubs = [], budget = 0, expenses = [];
+$("month").value = today.slice(0, 7);
+$("date").value = today;
+
+onAuthStateChanged(auth, user => {
+  $("login").hidden = !!user;
+  $("app").hidden = !user;
+  unsubs.forEach(u => u()); unsubs = [];
+  if (user) listen();
+});
+
+$("btnLogin").onclick = async () => {
+  $("err").textContent = "";
+  try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pwd").value); }
+  catch { $("err").textContent = "Connexion refusée : vérifiez l'email et le mot de passe."; }
+};
+$("pwd").onkeydown = e => { if (e.key === "Enter") $("btnLogin").click(); };
+$("btnOut").onclick = () => signOut(auth);
+$("month").onchange = () => { unsubs.forEach(u => u()); unsubs = []; listen(); };
+
+function listen() {
+  const m = $("month").value;
+  if (!m) return;
+  unsubs.push(onSnapshot(doc(db, "budgets", m), s => {
+    budget = s.exists() ? s.data().amount : 0;
+    $("budget").value = budget || "";
+    render();
+  }));
+  unsubs.push(onSnapshot(query(collection(db, "expenses"), where("month", "==", m)), s => {
+    expenses = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.date.localeCompare(a.date));
+    render();
+  }, () => { $("empty").textContent = "Accès refusé : ce compte n'est pas autorisé."; }));
+}
+
+$("btnBudget").onclick = () => setDoc(doc(db, "budgets", $("month").value), { amount: parseFloat($("budget").value) || 0 });
+
+$("btnAdd").onclick = async () => {
+  const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;
+  if (!label || !(amount > 0) || !date) return;
+  await addDoc(collection(db, "expenses"), {
+    label, amount, date, category: $("category").value,
+    month: date.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp()
+  });
+  $("label").value = ""; $("amount").value = "";
+  if (date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
+};
+
+function render() {
+  const spent = expenses.reduce((t, e) => t + e.amount, 0);
+  const left = budget - spent;
+  const pct = budget > 0 ? Math.min(100, spent / budget * 100) : 0;
+  $("left").textContent = eur(left);
+  $("left").style.color = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+  $("fill").style.width = pct + "%";
+  $("fill").style.background = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+  $("sum").textContent = `${eur(spent)} dépensés sur ${eur(budget)}`;
+
+  const byCat = {};
+  expenses.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
+  $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
+    .map(([c, v]) => `<div class="cat"><span>${c}</span><b>${eur(v)}</b></div>`).join("") || "Aucune dépense ce mois-ci.";
+
+  $("empty").textContent = "Aucune dépense. Ajoutez la première ci-dessus.";
+  $("empty").hidden = expenses.length > 0;
+  $("list").innerHTML = "";
+  expenses.forEach(e => {
+    const li = document.createElement("li");
+    const l = document.createElement("div");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    l.children[0].textContent = e.label;
+    l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category} · ${(e.by || "").split("@")[0]}`;
+    const r = document.createElement("div");
+    r.innerHTML = `<span class="amt">${eur(e.amount)}</span>`;
+    const b = document.createElement("button");
+    b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + e.label);
+    b.onclick = () => confirm("Supprimer cette dépense ?") && deleteDoc(doc(db, "expenses", e.id));
+    r.append(b); li.append(l, r); $("list").append(li);
+  });
+}
+</script>
+</body>
+</html>

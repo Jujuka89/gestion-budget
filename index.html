@@ -102,13 +102,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 👉 Remplacez par la config de VOTRE projet (Console Firebase > Paramètres du projet > Vos applications > Web)
+
 const firebaseConfig = {
-  apiKey: "VOTRE_API_KEY",
-  authDomain: "VOTRE_PROJET.firebaseapp.com",
-  projectId: "VOTRE_PROJET",
-  appId: "VOTRE_APP_ID"
+  apiKey: "AIzaSyAPG5tGC4jbJVSwibqeqeJDDSQh8jiXip0",
+  authDomain: "gestion-budget-7e4dc.firebaseapp.com",
+  projectId: "gestion-budget-7e4dc",
+  storageBucket: "gestion-budget-7e4dc.firebasestorage.app",
+  messagingSenderId: "718863589226",
+  appId: "1:718863589226:web:df33c18ac3635c656a0f13",
+
 };
+
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);

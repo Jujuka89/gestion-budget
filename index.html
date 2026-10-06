@@ -139,13 +139,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// 👉 Remplacez par la config de VOTRE projet (Console Firebase > Paramètres du projet > Vos applications > Web)
 const firebaseConfig = {
   apiKey: "AIzaSyAPG5tGC4jbJVSwibqeqeJDDSQh8jiXip0",
   authDomain: "gestion-budget-7e4dc.firebaseapp.com",
   projectId: "gestion-budget-7e4dc",
   storageBucket: "gestion-budget-7e4dc.firebasestorage.app",
   messagingSenderId: "718863589226",
-  appId: "1:718863589226:web:df33c18ac3635c656a0f13",
+  appId: "1:718863589226:web:df33c18ac3635c656a0f13"
+};
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -169,7 +171,19 @@ onAuthStateChanged(auth, user => {
 $("btnLogin").onclick = async () => {
   $("err").textContent = "";
   try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pwd").value); }
-  catch { $("err").textContent = "Connexion refusée : vérifiez l'email et le mot de passe."; }
+  catch (e) {
+    const msgs = {
+      "auth/invalid-credential": "Email ou mot de passe incorrect, ou compte non créé dans Firebase.",
+      "auth/invalid-api-key": "Clé API invalide : collez votre firebaseConfig dans le fichier.",
+      "auth/api-key-not-valid.-please-pass-a-valid-api-key.": "Clé API invalide : collez votre firebaseConfig dans le fichier.",
+      "auth/unauthorized-domain": "Domaine non autorisé : ajoutez votre domaine github.io dans Authentication > Paramètres > Domaines autorisés.",
+      "auth/operation-not-allowed": "Connexion email/mot de passe non activée dans Firebase Authentication.",
+      "auth/too-many-requests": "Trop d'essais : patientez quelques minutes.",
+      "auth/network-request-failed": "Problème de réseau."
+    };
+    $("err").textContent = (msgs[e.code] || "Échec de connexion.") + " (" + e.code + ")";
+    console.error(e);
+  }
 };
 $("pwd").onkeydown = e => { if (e.key === "Enter") $("btnLogin").click(); };
 $("btnOut").onclick = () => signOut(auth);

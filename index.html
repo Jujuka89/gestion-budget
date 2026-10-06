@@ -115,7 +115,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <p class="mute">Ces dépenses sont déduites automatiquement du budget de chaque mois, à partir du mois de départ choisi.</p>
     </section>
     <section>
-      <h2>Ajouter une dépense fixe</h2>
+      <h2 id="ftitle">Ajouter une dépense fixe</h2>
       <div class="row">
         <input id="flabel" placeholder="Libellé (ex. loyer, internet)">
         <input id="famount" type="number" step="0.01" min="0" placeholder="Montant (€)">
@@ -126,6 +126,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <input id="fday" type="number" min="1" max="31" placeholder="Jour du mois" aria-label="Jour du prélèvement">
         <input id="fstart" type="month" aria-label="À partir du mois">
         <button id="btnFixed">Ajouter</button>
+        <button class="ghost" id="btnCancel" hidden>Annuler</button>
       </div>
     </section>
     <section>
@@ -141,7 +142,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, setDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 👉 Remplacez par la config de VOTRE projet (Console Firebase > Paramètres du projet > Vos applications > Web)
 const firebaseConfig = {
@@ -276,19 +277,46 @@ function renderFixed() {
     const b = document.createElement("button");
     b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + f.label);
     b.onclick = () => confirm("Supprimer cette dépense fixe ? Elle ne sera plus déduite des mois, passés comme futurs.") && deleteDoc(doc(db, "recurring", f.id));
-    r.append(b); li.append(l, r); $("fixedList").append(li);
+    const ed = document.createElement("button");
+    ed.className = "ghost"; ed.textContent = "Modifier"; ed.setAttribute("aria-label", "Modifier " + f.label);
+    ed.onclick = () => startEdit(f);
+    r.append(ed, b); li.append(l, r); $("fixedList").append(li);
   });
 }
 
+let editId = null;
+
+function resetFixedForm() {
+  editId = null;
+  $("flabel").value = ""; $("famount").value = ""; $("fday").value = "";
+  $("fstart").value = today.slice(0, 7);
+  $("btnFixed").textContent = "Ajouter";
+  $("ftitle").textContent = "Ajouter une dépense fixe";
+  $("btnCancel").hidden = true;
+}
+
+function startEdit(f) {
+  editId = f.id;
+  $("flabel").value = f.label; $("famount").value = f.amount;
+  $("fcategory").value = f.category; $("fday").value = f.day || "";
+  $("fstart").value = f.start || today.slice(0, 7);
+  $("btnFixed").textContent = "Enregistrer";
+  $("ftitle").textContent = "Modifier la dépense fixe";
+  $("btnCancel").hidden = false;
+  $("flabel").scrollIntoView({ behavior: "smooth", block: "center" });
+  $("flabel").focus();
+}
+
+$("btnCancel").onclick = resetFixedForm;
+
 $("btnFixed").onclick = async () => {
   const label = $("flabel").value.trim(), amount = parseFloat($("famount").value);
-  const day = parseInt($("fday").value) || 1, start = $("fstart").value;
+  const day = Math.min(31, Math.max(1, parseInt($("fday").value) || 1)), start = $("fstart").value;
   if (!label || !(amount > 0) || !start) return;
-  await addDoc(collection(db, "recurring"), {
-    label, amount, day: Math.min(31, Math.max(1, day)), start,
-    category: $("fcategory").value, by: auth.currentUser.email, created: serverTimestamp()
-  });
-  $("flabel").value = ""; $("famount").value = ""; $("fday").value = "";
+  const data = { label, amount, day, start, category: $("fcategory").value };
+  if (editId) await updateDoc(doc(db, "recurring", editId), data);
+  else await addDoc(collection(db, "recurring"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });
+  resetFixedForm();
 };
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {

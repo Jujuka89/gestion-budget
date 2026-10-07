@@ -91,10 +91,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="big" id="left">0 €</div>
     <div class="bar"><i id="fill"></i></div>
     <div class="mute" id="sum"></div>
-    <div class="row" style="margin-top:14px">
-      <input id="budget" type="number" step="0.01" min="0" placeholder="Budget du mois, optionnel (€)">
-      <button id="btnBudget">Enregistrer le budget</button>
-    </div>
   </section>
 
   <section>
@@ -106,10 +102,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="row" style="margin-top:14px">
       <input id="foodAmt" type="number" step="0.01" min="0" placeholder="Montant des courses (€)">
       <button id="btnFoodAdd">Ajouter des courses</button>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <input id="fbudget" type="number" step="1" min="0" placeholder="Budget alimentaire (€)" aria-label="Budget alimentaire du mois">
-      <button class="ghost" id="btnFoodBudget">Modifier le budget</button>
     </div>
   </section>
 
@@ -177,7 +169,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <p class="mute">Chacun verse sur le compte commun une part proportionnelle à son salaire du mois choisi (en haut de la page).</p>
       <div class="row"><input id="s1n" placeholder="Prénom 1"><input id="s1a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
       <div class="row" style="margin-top:8px"><input id="s2n" placeholder="Prénom 2"><input id="s2a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
-      <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="sIncl" type="checkbox" style="width:auto"> Inclure aussi le reste du budget du mois (loisirs, imprévus…)</label>
       <div class="row" style="margin-top:12px"><button id="btnSplit">Enregistrer les salaires</button></div>
       <p class="mute" id="sHint"></p>
     </section>
@@ -279,11 +270,6 @@ function listen() {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
     fillSplit(); renderSplit(); render();
   }));
-  unsubs.push(onSnapshot(doc(db, "budgets", m), s => {
-    budget = s.exists() ? s.data().amount : 0;
-    $("budget").value = budget || "";
-    render(); renderSplit();
-  }));
   unsubs.push(onSnapshot(collection(db, "recurring"), s => {
     fixed = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit();
@@ -294,7 +280,6 @@ function listen() {
   }, () => { $("empty").textContent = "Accès refusé : ce compte n'est pas autorisé."; }));
 }
 
-$("btnBudget").onclick = () => setDoc(doc(db, "budgets", $("month").value), { amount: parseFloat($("budget").value) || 0 });
 
 $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;
@@ -318,7 +303,7 @@ function render() {
   const other = spent - fixedTotal - food;
   const left = sal - spent, pct = sal > 0 ? Math.min(100, spent / sal * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
-  $("left").textContent = sal > 0 ? eur(left) : "—";
+  $("left").textContent = sal > 0 ? eur0(left) : "—";
   $("left").style.color = sal > 0 ? col : "var(--mute)";
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
@@ -326,7 +311,7 @@ function render() {
   else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (i === 3 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
-    d.children[0].textContent = t; d.children[1].textContent = eur(v);
+    d.children[0].textContent = t; d.children[1].textContent = eur0(v);
     if (i) d.children[1].style.fontWeight = 400;
     $("sum").append(d);
   });
@@ -334,7 +319,7 @@ function render() {
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
-    .map(([c, v]) => `<div class="cat"><span>${c}</span><b>${eur(v)}</b></div>`).join("") || "Aucune dépense ce mois-ci.";
+    .map(([c, v]) => `<div class="cat"><span>${c}</span><b>${eur0(v)}</b></div>`).join("") || "Aucune dépense ce mois-ci.";
 
   $("empty").textContent = "Aucune dépense. Ajoutez la première ci-dessus.";
   $("empty").hidden = expenses.length > 0;
@@ -346,7 +331,7 @@ function render() {
     l.children[0].textContent = e.label;
     l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category} · ${(e.by || "").split("@")[0]}`;
     const r = document.createElement("div");
-    r.innerHTML = `<span class="amt">${eur(e.amount)}</span>`;
+    r.innerHTML = `<span class="amt">${eur0(e.amount)}</span>`;
     const b = document.createElement("button");
     b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + e.label);
     b.onclick = () => confirm("Supprimer cette dépense ?") && deleteDoc(doc(db, "expenses", e.id));
@@ -515,13 +500,11 @@ function renderFood() {
   const spent = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
   const left = fb - spent, pct = fb > 0 ? Math.min(100, spent / fb * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
-  $("foodLeft").textContent = eur(left); $("foodLeft").style.color = col;
+  $("foodLeft").textContent = eur0(left); $("foodLeft").style.color = col;
   $("foodFill").style.width = pct + "%"; $("foodFill").style.background = col;
-  $("foodSum").textContent = `${eur(spent)} dépensés sur ${eur(fb)}`;
-  if (document.activeElement !== $("fbudget")) $("fbudget").value = fb;
+  $("foodSum").textContent = `${eur0(spent)} dépensés sur ${eur0(fb)}`;
 }
 
-$("btnFoodBudget").onclick = () => setDoc(doc(db, "foodBudgets", $("month").value), { amount: parseFloat($("fbudget").value) || 0 });
 $("btnFoodAdd").onclick = async () => {
   const amount = parseFloat($("foodAmt").value);
   if (!(amount > 0)) return;
@@ -538,7 +521,6 @@ function fillSplit() {
   const p = (src && src.p) || [];
   $("s1n").value = p[0] ? p[0].n : ""; $("s1a").value = d && p[0] ? p[0].a : "";
   $("s2n").value = p[1] ? p[1].n : ""; $("s2a").value = d && p[1] ? p[1].a : "";
-  $("sIncl").checked = !!(src && src.incl);
   $("sHint").textContent = d ? "Salaires enregistrés pour ce mois." : "Salaires de ce mois à saisir : ils changent chaque mois.";
   renderSplit();
 }
@@ -549,14 +531,13 @@ function renderSplit() {
   $("sNotice").hidden = !salLoaded || have;
   document.querySelector('nav [data-t="split"]').textContent = "Répartition" + (salLoaded && !have ? " •" : "");
   const fx = fixed.reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const food = foodBudgetFor(m), other = $("sIncl").checked ? Math.max(0, budget - fx - food) : 0, need = fx + food + other;
+  const food = foodBudgetFor(m), need = fx + food;
   const a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0];
   const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du mois", eur(fx)));
   $("sNeed").append(row("Budget alimentaire", eur(food)));
-  if (other) $("sNeed").append(row("Autres dépenses (reste du budget)", eur(other)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];
@@ -573,11 +554,9 @@ function renderSplit() {
 }
 
 ["s1n", "s1a", "s2n", "s2a"].forEach(id => $(id).oninput = () => { splitDirty = true; renderSplit(); });
-$("sIncl").onchange = () => { splitDirty = true; renderSplit(); };
 $("btnSplit").onclick = async () => {
   await setDoc(doc(db, "salaries", $("month").value), {
-    p: [{ n: $("s1n").value.trim(), a: parseFloat($("s1a").value) || 0 }, { n: $("s2n").value.trim(), a: parseFloat($("s2a").value) || 0 }],
-    incl: $("sIncl").checked
+    p: [{ n: $("s1n").value.trim(), a: parseFloat($("s1a").value) || 0 }, { n: $("s2n").value.trim(), a: parseFloat($("s2a").value) || 0 }]
   });
   splitDirty = false;
 };

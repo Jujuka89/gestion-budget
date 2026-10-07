@@ -207,7 +207,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </section>
     <section>
       <h2>🎁 Liste de cadeaux</h2>
-      <p class="mute">Vos idées de cadeaux avec leur prix. Cette liste n'est pas prise en compte dans le budget.</p>
+      <p class="mute">Vos idées de cadeaux avec leur prix. Cette liste n'est pas prise en compte dans le budget. Le mois indiqué est une estimation : on cumule ce qu'il restera chaque mois sur les salaires et on finance les cadeaux du moins cher au plus cher.</p>
       <div class="row">
         <select id="gPerson" aria-label="Pour qui"><option>Julien</option><option>Marie</option><option>Kélia</option><option>Milio</option></select>
         <input id="gLabel" placeholder="Cadeau (ex. casque audio)">
@@ -335,7 +335,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], gifts = [], gEditId = null, estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], gifts = [], gEditId = null, curLeft = { m: "", v: null }, estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -455,6 +455,7 @@ function render() {
     if (i === 5) Object.entries(estimates).sort((a, b) => b[1].amount - a[1].amount).forEach(([c, v]) => $("sum").append(miniGauge(c, estActual(c), v.amount)));
   });
 
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
@@ -831,9 +832,41 @@ function renderFuture() {
   }
 }
 
+function projRem(x) {
+  const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
+  const av = real > 0 ? null : salAvg(x);
+  const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
+  if (!(sal > 0)) return null;
+  const estTot = Object.values(estimates).reduce((t, v) => t + v.amount, 0);
+  return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot);
+}
+function giftPlan() {
+  const cur = today.slice(0, 7), S = [];
+  let acc = 0;
+  for (let k = 0; k <= 24; k++) {
+    const x = nmo(cur, k);
+    const r = (k === 0 && curLeft.m === cur && curLeft.v !== null) ? curLeft.v : projRem(x);
+    if (r === null) break;
+    acc += r; S.push(acc);
+  }
+  const when = {}; let C = 0;
+  gifts.filter(g => !g.done && g.price > 0).sort((a, b) => a.price - b.price || (a.label || "").localeCompare(b.label || "")).forEach(g => {
+    C += g.price; when[g.id] = S.findIndex(v => v >= C);
+  });
+  return { when, known: S.length > 0, cur };
+}
+function giftWhen(g, gp) {
+  if (g.done) return "";
+  if (!(g.price > 0)) return "Prix à définir";
+  if (!gp.known) return "Salaires non renseignés";
+  const k = gp.when[g.id];
+  return k < 0 ? "Pas avant plus de 2 ans" : k === 0 ? "Possible dès ce mois-ci" : "Possible dès " + monthLabel(nmo(gp.cur, k));
+}
+
 const PEOPLE = ["Julien", "Marie", "Kélia", "Milio"];
 function renderGifts() {
   const box = $("giftList"); box.innerHTML = "";
+  const gp = giftPlan();
   const todo = gifts.filter(g => !g.done).reduce((t, g) => t + (g.price || 0), 0);
   $("giftTotal").textContent = gifts.length ? `${gifts.length} idée(s) · ${eur(todo)} restant à offrir (hors budget)` : "Aucune idée de cadeau pour l'instant.";
   PEOPLE.forEach(p => {
@@ -851,7 +884,10 @@ function renderGifts() {
       cb.onchange = () => updateDoc(doc(db, "gifts", g.id), { done: cb.checked });
       const t = document.createElement("span"); t.textContent = g.label;
       if (g.done) { t.style.textDecoration = "line-through"; t.style.color = "var(--mute)"; }
-      lb.append(cb, t);
+      const w = document.createElement("div"); w.style.minWidth = "0"; w.append(t);
+      const info = giftWhen(g, gp);
+      if (info) { const sm = document.createElement("div"); sm.className = "mute"; sm.style.fontSize = ".8rem"; sm.textContent = info; w.append(sm); }
+      lb.append(cb, w);
       const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center";
       const pr = document.createElement("span"); pr.className = "amt"; pr.textContent = g.price ? eur(g.price) : "—";
       const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + g.label);

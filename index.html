@@ -428,6 +428,8 @@ function render() {
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
     if (i) d.children[1].style.fontWeight = 400;
     $("sum").append(d);
+    if (i === 3) $("sum").append(miniGauge("Commandes Jow ce mois-ci", jow, jowPlan));
+    if (i === 5) Object.entries(estimates).sort((a, b) => b[1].amount - a[1].amount).forEach(([c, v]) => $("sum").append(miniGauge(c, estActual(c), v.amount)));
   });
 
   const byCat = {};
@@ -772,6 +774,17 @@ $("btnEst").onclick = async () => {
   await setDoc(doc(db, "estimates", c), { category: c, amount });
   $("estAmt").value = "";
 };
+
+function miniGauge(label, spent, budget) {
+  const pct = budget > 0 ? Math.min(100, spent / budget * 100) : 0, left = budget - spent;
+  const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+  const w = document.createElement("div"); w.style.cssText = "margin:0 0 10px 14px";
+  w.innerHTML = "<div class='cat' style='font-size:.85rem;padding:0'><span></span><span></span></div><div class='bar' style='height:6px;margin:4px 0 0'><i></i></div>";
+  const sp = w.querySelectorAll("span");
+  sp[0].textContent = label; sp[1].textContent = `${eur0(spent)} / ${eur0(budget)}`;
+  const f = w.querySelector("i"); f.style.width = pct + "%"; f.style.background = col;
+  return w;
+}
 
 function foodBudgetFor(m) {
   if (foodB[m] != null) return foodB[m];

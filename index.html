@@ -161,7 +161,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <input id="flabel" placeholder="Libellé (ex. loyer, internet)">
         <input id="famount" type="number" step="0.01" min="0" placeholder="Montant (€)">
         <select id="fcategory">
-          <option>Maison / Charges</option><option>Prêt</option><option>Énergie</option><option>Abonnements</option>
+          <option>Maison / Charges</option><option>Prêt</option><option>Abonnements</option>
           <option>Assurances / Santé</option><option>Transport</option><option>Enfants</option><option>Autre</option>
         </select>
         <select id="faccount" aria-label="Compte de prélèvement">
@@ -350,7 +350,7 @@ function listen() {
     fillSplit(); renderSplit(); render();
   }));
   unsubs.push(onSnapshot(collection(db, "recurring"), s => {
-    fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Assurances: "Assurances / Santé" })[o.category] || o.category; return o; });
+    fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé" })[o.category] || o.category; return o; });
     render(); renderSplit();
   }));
   unsubs.push(onSnapshot(query(collection(db, "expenses"), where("month", "==", m)), s => {

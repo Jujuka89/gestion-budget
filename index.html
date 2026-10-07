@@ -85,6 +85,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <button class="on" data-t="month">Mois en cours</button>
     <button data-t="fixed">Dépenses fixes</button>
     <button data-t="planned">Dépenses prévues</button>
+    <button data-t="estimated">Dépenses estimées</button>
     <button data-t="split">Répartition</button>
   </nav>
 
@@ -121,7 +122,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <select id="category">
         <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
         <option>Transport</option><option>Santé</option><option>Loisirs</option>
-        <option>Enfants</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
+        <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
       </select>
       <select id="account" aria-label="Compte">
         <option>Julien</option><option>Marie</option><option selected>Commun</option>
@@ -234,6 +235,27 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     </div>
   </div>
 
+  <div id="tabEstimated" hidden>
+    <section>
+      <div class="mute">Total estimé par mois</div>
+      <div class="big" id="estTotal">0 €</div>
+      <p class="mute">Budgets estimés pour les dépenses irrégulières (carburant, santé, imprévus…). Ils sont déduits de « il vous restera », et vos dépenses réelles de la même catégorie (formulaire « Ajouter une dépense ») s'y imputent. Les moyennes se calculent sur les mois complets déjà passés.</p>
+    </section>
+    <section>
+      <h2>Estimer une catégorie</h2>
+      <div class="row">
+        <select id="estCat" aria-label="Catégorie"><option>Carburant</option><option>Santé</option><option>Imprévus</option><option>Transport</option><option>Loisirs</option><option>Enfants</option><option>Autre</option></select>
+        <input id="estAmt" type="number" step="1" min="0" placeholder="Budget estimé / mois (€)">
+        <button id="btnEst">Enregistrer</button>
+      </div>
+    </section>
+    <section>
+      <h2>Estimations et moyennes</h2>
+      <ul id="estList"></ul>
+      <p id="estEmpty" class="mute">Aucune estimation. Choisissez une catégorie ci-dessus. Les moyennes apparaîtront après un mois complet de dépenses.</p>
+    </section>
+  </div>
+
   <div id="tabSplit" hidden>
     <section>
       <h2>Répartition au prorata des salaires</h2>
@@ -296,7 +318,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], planBuys = [], planDetailId = null, planEditId = null;
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -333,6 +355,16 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   splitDirty = false; fillSplit();
+  unsubs.push(onSnapshot(collection(db, "estimates"), s => {
+    estimates = {}; s.docs.forEach(d => estimates[d.id] = d.data());
+    render(); renderSplit();
+  }));
+  const d0 = new Date(); d0.setDate(1); d0.setMonth(d0.getMonth() - 12);
+  const startM = d0.getFullYear() + "-" + String(d0.getMonth() + 1).padStart(2, "0");
+  unsubs.push(onSnapshot(query(collection(db, "expenses"), where("month", ">=", startM)), s => {
+    histExp = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  }, () => {}));
   unsubs.push(onSnapshot(query(collection(db, "expenses"), where("planId", ">", "")), s => {
     planBuys = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit();
@@ -372,7 +404,7 @@ $("btnAdd").onclick = async () => {
 };
 
 function render() {
-  renderFood(); renderPlan();
+  renderFood(); renderPlan(); renderEst();
   const m = $("month").value;
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
@@ -380,9 +412,9 @@ function render() {
   const sal = ((salaries[m] && salaries[m].p) || []).reduce((t, x) => t + (x.a || 0), 0);
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
   const jow = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
-  const pl = planFor(m);
-  const other = spent - fixedTotal - food - jow - pl.actual;
-  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan + (pl.total - pl.actual);
+  const pl = planFor(m), es = estFor();
+  const other = spent - fixedTotal - food - jow - pl.actual - es.actual;
+  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan + (pl.total - pl.actual) + (es.total - es.actual);
   const left = sal - committed, pct = sal > 0 ? Math.min(100, committed / sal * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("left").textContent = sal > 0 ? eur0(left) : "—";
@@ -390,7 +422,7 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (i >= 3 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
@@ -434,7 +466,7 @@ function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y,
 function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
 
 let editId = null, curId = null;
-function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabSplit", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -680,6 +712,67 @@ $("btnPlan").onclick = async () => {
   if (was) openPlan(was);
 };
 
+const EST_CATS = ["Carburant", "Santé", "Imprévus", "Transport", "Loisirs", "Enfants", "Autre"];
+const estActual = c => expenses.filter(e => e.category === c && !e.planId).reduce((t, e) => t + e.amount, 0);
+function estFor() {
+  let total = 0, actual = 0;
+  Object.entries(estimates).forEach(([c, v]) => { const A = estActual(c); total += Math.max(v.amount, A); actual += A; });
+  return { total, actual };
+}
+function estAvg() {
+  const cur = today.slice(0, 7), past = histExp.filter(e => e.month < cur);
+  if (!past.length) return { n: 0, avg: {} };
+  const mi = ym => +ym.slice(0, 4) * 12 + +ym.slice(5) - 1;
+  const first = past.reduce((a, e) => e.month < a ? e.month : a, past[0].month);
+  const n = Math.max(1, Math.min(12, mi(cur) - mi(first)));
+  const sums = {};
+  past.filter(e => !e.planId && EST_CATS.includes(e.category)).forEach(e => sums[e.category] = (sums[e.category] || 0) + e.amount);
+  const avg = {}; Object.keys(sums).forEach(c => avg[c] = sums[c] / n);
+  return { n, avg };
+}
+
+function renderEst() {
+  const { n, avg } = estAvg();
+  $("estTotal").textContent = eur0(Object.values(estimates).reduce((t, v) => t + v.amount, 0)) + " / mois";
+  const cats = EST_CATS.filter(c => estimates[c] || avg[c] > 0)
+    .sort((a, b) => ((estimates[b] || {}).amount || 0) - ((estimates[a] || {}).amount || 0) || (avg[b] || 0) - (avg[a] || 0));
+  $("estEmpty").hidden = cats.length > 0;
+  $("estList").innerHTML = "";
+  const btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; return b; };
+  cats.forEach(c => {
+    const est = estimates[c], A = estActual(c), li = document.createElement("li");
+    li.style.display = "block";
+    const head = document.createElement("div"); head.className = "cat"; head.innerHTML = "<b></b><b></b>";
+    head.children[0].textContent = c;
+    head.children[1].textContent = est ? eur0(est.amount) + " / mois" : "";
+    li.append(head);
+    if (est) {
+      const pct = est.amount > 0 ? Math.min(100, A / est.amount * 100) : 0, left = est.amount - A;
+      const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+      const bar = document.createElement("div"); bar.className = "bar"; bar.innerHTML = "<i></i>";
+      bar.firstChild.style.width = pct + "%"; bar.firstChild.style.background = col; li.append(bar);
+      const t = document.createElement("div"); t.className = "mute";
+      t.textContent = `Ce mois-ci : ${eur0(A)} dépensés, ${left < 0 ? "dépassé de " + eur0(-left) : "reste " + eur0(left)}`; li.append(t);
+    }
+    const m = document.createElement("div"); m.className = "mute";
+    m.textContent = avg[c] > 0 ? `Moyenne constatée : ${eur0(avg[c])} / mois (sur ${n} mois)` : (n ? "Pas de dépense passée dans cette catégorie" : "Moyenne : disponible après un mois complet");
+    li.append(m);
+    const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "8px";
+    if (est) row.append(btn("Modifier", () => { $("estCat").value = c; $("estAmt").value = est.amount; $("estAmt").focus(); window.scrollTo(0, 0); }, true));
+    if (avg[c] > 0) row.append(btn(est ? "Utiliser la moyenne" : "Estimer à la moyenne", () => setDoc(doc(db, "estimates", c), { category: c, amount: Math.round(avg[c]) }), !!est));
+    if (est) row.append(btn("Supprimer", () => confirm("Supprimer l'estimation « " + c + " » ?") && deleteDoc(doc(db, "estimates", c)), true));
+    if (row.children.length) li.append(row);
+    $("estList").append(li);
+  });
+}
+
+$("btnEst").onclick = async () => {
+  const amount = parseFloat($("estAmt").value), c = $("estCat").value;
+  if (!(amount >= 0) || $("estAmt").value === "") return;
+  await setDoc(doc(db, "estimates", c), { category: c, amount });
+  $("estAmt").value = "";
+};
+
 function foodBudgetFor(m) {
   if (foodB[m] != null) return foodB[m];
   const ks = Object.keys(foodB).filter(k => k < m).sort();
@@ -758,7 +851,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   if (editId) resetFixedForm();
   closePlan(); if (planEditId) resetPlanForm();
-  curId = null; show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", split: "tabSplit" }[b.dataset.t]);
+  curId = null; show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", estimated: "tabEstimated", split: "tabSplit" }[b.dataset.t]);
 });
 </script>
 </body>

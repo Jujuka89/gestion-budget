@@ -87,12 +87,12 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="row" style="margin-top:10px"><button id="btnGoSplit">Saisir les salaires</button></div>
   </section>
   <section>
-    <div class="mute">Il vous reste</div>
+    <div class="mute">Il vous reste sur vos 2 salaires</div>
     <div class="big" id="left">0 €</div>
     <div class="bar"><i id="fill"></i></div>
     <div class="mute" id="sum"></div>
     <div class="row" style="margin-top:14px">
-      <input id="budget" type="number" step="0.01" min="0" placeholder="Budget du mois (€)">
+      <input id="budget" type="number" step="0.01" min="0" placeholder="Budget du mois, optionnel (€)">
       <button id="btnBudget">Enregistrer le budget</button>
     </div>
   </section>
@@ -277,7 +277,7 @@ function listen() {
   }));
   unsubs.push(onSnapshot(collection(db, "salaries"), s => {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
-    fillSplit(); renderSplit();
+    fillSplit(); renderSplit(); render();
   }));
   unsubs.push(onSnapshot(doc(db, "budgets", m), s => {
     budget = s.exists() ? s.data().amount : 0;
@@ -313,13 +313,23 @@ function render() {
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
   const spent = expenses.reduce((t, e) => t + e.amount, 0) + fixedTotal;
-  const left = budget - spent;
-  const pct = budget > 0 ? Math.min(100, spent / budget * 100) : 0;
-  $("left").textContent = eur(left);
-  $("left").style.color = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
-  $("fill").style.width = pct + "%";
-  $("fill").style.background = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
-  $("sum").textContent = `${eur(spent)} dépensés sur ${eur(budget)}` + (fixedTotal ? ` (dont ${eur(fixedTotal)} de dépenses fixes)` : "");
+  const sal = ((salaries[m] && salaries[m].p) || []).reduce((t, x) => t + (x.a || 0), 0);
+  const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
+  const other = spent - fixedTotal - food;
+  const left = sal - spent, pct = sal > 0 ? Math.min(100, spent / sal * 100) : 0;
+  const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+  $("left").textContent = sal > 0 ? eur(left) : "—";
+  $("left").style.color = sal > 0 ? col : "var(--mute)";
+  $("fill").style.width = pct + "%"; $("fill").style.background = col;
+  $("sum").innerHTML = "";
+  if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
+  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+    if (i === 3 && !(v > 0)) return;
+    const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
+    d.children[0].textContent = t; d.children[1].textContent = eur(v);
+    if (i) d.children[1].style.fontWeight = 400;
+    $("sum").append(d);
+  });
 
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);

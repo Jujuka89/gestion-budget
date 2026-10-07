@@ -334,7 +334,7 @@ function render() {
     l.children[0].textContent = e.label;
     l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
     const r = document.createElement("div");
-    r.innerHTML = `<span class="amt">${eur0(e.amount)}</span>`;
+    r.innerHTML = `<span class="amt">${eur(e.amount)}</span>`;
     const b = document.createElement("button");
     b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + e.label);
     b.onclick = () => confirm("Supprimer cette dépense ?") && deleteDoc(doc(db, "expenses", e.id));

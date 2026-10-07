@@ -33,6 +33,10 @@ li button{padding:3px 9px;margin-left:8px}
 #err{color:var(--bad);min-height:1.4em;margin:8px 0 0}
 .rowbtn{display:flex;justify-content:space-between;gap:10px;flex:1;width:100%;background:none;color:var(--ink);border:0;padding:6px 0;text-align:left;border-radius:0}
 .rowbtn:hover .nm{text-decoration:underline}
+.rowbtn .amt{text-align:right}
+.rowbtn small{display:block;color:var(--mute);font-size:.8rem}
+.cathead{display:flex;justify-content:space-between;gap:10px;padding-top:16px;font-weight:700;color:var(--ok)}
+.cathead small{font-weight:400;color:var(--mute)}
 .ch{width:100%;height:auto;display:block}
 .ch .gl{stroke:var(--line)}
 .ch .tx{fill:var(--mute);font:11px Georgia,serif}
@@ -119,6 +123,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <section>
       <div class="mute">Total des dépenses fixes par mois</div>
       <div class="big" id="fixedTotal">0 €</div>
+      <div class="mute" id="fixedYear"></div>
       <p class="mute">Ces dépenses sont déduites automatiquement du budget de chaque mois, à partir du mois de départ choisi. Cliquez sur une dépense pour voir son détail.</p>
     </section>
     <section>
@@ -303,19 +308,38 @@ function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), 
 let editId = null, curId = null;
 function show(v) { ["tabMonth", "tabFixed", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
+const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
 function renderFixed() {
-  $("fixedTotal").textContent = eur(fixed.reduce((t, f) => t + (priceAt(f, today.slice(0, 7)) || 0), 0));
+  const items = fixed.map(f => ({ f, p: curPrice(f) }));
+  const total = items.reduce((t, x) => t + (priceAt(x.f, today.slice(0, 7)) || 0), 0);
+  $("fixedTotal").textContent = eur0(total) + " / mois";
+  $("fixedYear").textContent = eur0(total * 12) + " / an";
   $("fixedEmpty").hidden = fixed.length > 0;
   $("fixedList").innerHTML = "";
-  fixed.slice().sort((a, b) => (a.day || 0) - (b.day || 0)).forEach(f => {
-    const li = document.createElement("li"), b = document.createElement("button");
-    b.className = "rowbtn";
-    b.innerHTML = "<span class='nm'></span><span class='amt'></span>";
-    b.children[0].textContent = f.label;
-    b.children[1].textContent = eur(curPrice(f));
-    b.onclick = () => openDetail(f.id);
-    li.append(b); $("fixedList").append(li);
-  });
+  const groups = {};
+  items.forEach(x => (groups[x.f.category || "Autre"] ||= []).push(x));
+  Object.entries(groups)
+    .map(([c, l]) => ({ c, l: l.sort((a, b) => b.p - a.p), t: l.reduce((s, x) => s + x.p, 0) }))
+    .sort((a, b) => b.t - a.t)
+    .forEach(g => {
+      const h = document.createElement("li");
+      h.className = "cathead";
+      h.innerHTML = "<span></span><small></small>";
+      h.children[0].textContent = g.c;
+      h.children[1].textContent = `${eur(g.t)}/mois · ${eur(g.t * 12)}/an`;
+      $("fixedList").append(h);
+      g.l.forEach(({ f, p }) => {
+        const li = document.createElement("li"), b = document.createElement("button");
+        b.className = "rowbtn";
+        b.innerHTML = "<span class='nm'></span><span class='amt'><b></b><small></small></span>";
+        b.children[0].textContent = f.label;
+        b.querySelector("b").textContent = eur(p) + " / mois";
+        b.querySelector("small").textContent = eur(p * 12) + " / an";
+        b.onclick = () => openDetail(f.id);
+        li.append(b); $("fixedList").append(li);
+      });
+    });
   if (curId) renderDetail();
 }
 

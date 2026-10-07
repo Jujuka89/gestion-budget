@@ -78,6 +78,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   <nav>
     <button class="on" data-t="month">Mois en cours</button>
     <button data-t="fixed">Dépenses fixes</button>
+    <button data-t="split">Répartition</button>
   </nav>
 
   <div id="tabMonth">
@@ -150,6 +151,24 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     </section>
   </div>
 
+  <div id="tabSplit" hidden>
+    <section>
+      <h2>Répartition au prorata des salaires</h2>
+      <p class="mute">Chacun verse sur le compte commun une part proportionnelle à son salaire du mois choisi (en haut de la page).</p>
+      <div class="row"><input id="s1n" placeholder="Prénom 1"><input id="s1a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
+      <div class="row" style="margin-top:8px"><input id="s2n" placeholder="Prénom 2"><input id="s2a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="sIncl" type="checkbox" style="width:auto"> Inclure aussi le budget du mois (courses, loisirs…)</label>
+      <div class="row" style="margin-top:12px"><button id="btnSplit">Enregistrer les salaires</button></div>
+      <p class="mute" id="sHint"></p>
+    </section>
+    <section>
+      <h2>À verser sur le compte commun</h2>
+      <div id="sNeed"></div>
+      <div class="bar"><i id="sBar"></i></div>
+      <div id="sRes"></div>
+    </section>
+  </div>
+
   <div id="tabDetail" hidden>
     <section>
       <button class="ghost" id="btnBack">Retour aux dépenses fixes</button>
@@ -195,7 +214,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [];
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false;
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -231,14 +250,19 @@ $("month").onchange = () => { unsubs.forEach(u => u()); unsubs = []; listen(); }
 function listen() {
   const m = $("month").value;
   if (!m) return;
+  splitDirty = false; fillSplit();
+  unsubs.push(onSnapshot(collection(db, "salaries"), s => {
+    salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
+    fillSplit(); renderSplit();
+  }));
   unsubs.push(onSnapshot(doc(db, "budgets", m), s => {
     budget = s.exists() ? s.data().amount : 0;
     $("budget").value = budget || "";
-    render();
+    render(); renderSplit();
   }));
   unsubs.push(onSnapshot(collection(db, "recurring"), s => {
     fixed = s.docs.map(d => ({ id: d.id, ...d.data() }));
-    render();
+    render(); renderSplit();
   }));
   unsubs.push(onSnapshot(query(collection(db, "expenses"), where("month", "==", m)), s => {
     expenses = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.date.localeCompare(a.date));
@@ -306,7 +330,7 @@ function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y,
 function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
 
 let editId = null, curId = null;
-function show(v) { ["tabMonth", "tabFixed", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+function show(v) { ["tabMonth", "tabFixed", "tabSplit", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -445,10 +469,58 @@ $("btnFixed").onclick = async () => {
   }
 };
 
+function fillSplit() {
+  if (splitDirty) return;
+  const m = $("month").value, d = salaries[m];
+  let src = d;
+  if (!d) { const ks = Object.keys(salaries).filter(k => k < m).sort(); if (ks.length) src = salaries[ks[ks.length - 1]]; }
+  const p = (src && src.p) || [];
+  $("s1n").value = p[0] ? p[0].n : ""; $("s1a").value = p[0] ? p[0].a : "";
+  $("s2n").value = p[1] ? p[1].n : ""; $("s2a").value = p[1] ? p[1].a : "";
+  $("sIncl").checked = !!(src && src.incl);
+  $("sHint").textContent = d ? "Salaires enregistrés pour ce mois." : src ? "Valeurs reprises du mois précédent : cliquez sur Enregistrer pour confirmer." : "Saisissez les deux salaires du mois.";
+  renderSplit();
+}
+
+function renderSplit() {
+  const m = $("month").value;
+  const fx = fixed.reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+  const incl = $("sIncl").checked, need = fx + (incl ? budget : 0);
+  const a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0];
+  const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
+  const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
+  $("sNeed").innerHTML = "";
+  $("sNeed").append(row("Dépenses fixes du mois", eur(fx)));
+  if (incl) $("sNeed").append(row("Budget du mois", eur(budget)));
+  $("sNeed").append(row("Total à répartir", eur(need), true));
+  $("sRes").innerHTML = "";
+  const tot = a[0] + a[1];
+  if (!(tot > 0)) { $("sBar").style.width = "0"; $("sRes").textContent = "Saisissez les salaires pour voir la répartition."; return; }
+  const c0 = Math.round(need * a[0] / tot * 100) / 100, c = [c0, Math.round((need - c0) * 100) / 100];
+  $("sBar").style.width = (a[0] / tot * 100) + "%";
+  a.forEach((v, i) => {
+    const box = document.createElement("div"); box.style.cssText = "border-top:1px solid var(--line);margin-top:12px;padding-top:10px";
+    const t = document.createElement("div"); t.style.fontWeight = "700"; t.textContent = n[i];
+    box.append(t, row("Salaire", eur(v)), row("Part du total des salaires", (v / tot * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " %"),
+      row("À verser sur le compte commun", eur(c[i]), true), row("Reste pour soi", eur(v - c[i])));
+    $("sRes").append(box);
+  });
+}
+
+["s1n", "s1a", "s2n", "s2a"].forEach(id => $(id).oninput = () => { splitDirty = true; renderSplit(); });
+$("sIncl").onchange = () => { splitDirty = true; renderSplit(); };
+$("btnSplit").onclick = async () => {
+  await setDoc(doc(db, "salaries", $("month").value), {
+    p: [{ n: $("s1n").value.trim(), a: parseFloat($("s1a").value) || 0 }, { n: $("s2n").value.trim(), a: parseFloat($("s2a").value) || 0 }],
+    incl: $("sIncl").checked
+  });
+  splitDirty = false;
+};
+
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   if (editId) resetFixedForm();
-  curId = null; show(b.dataset.t === "month" ? "tabMonth" : "tabFixed");
+  curId = null; show({ month: "tabMonth", fixed: "tabFixed", split: "tabSplit" }[b.dataset.t]);
 });
 </script>
 </body>

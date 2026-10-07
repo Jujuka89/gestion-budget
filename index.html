@@ -214,6 +214,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       </section>
       <section>
         <h2>Ajouter un achat</h2>
+        <p class="mute">L'achat est enregistré à sa date réelle (dans les dépenses du mois correspondant) et déduit du budget de cette dépense prévue.</p>
         <div class="row">
           <input id="pbLabel" placeholder="Achat (ex. jouet, parfum)">
           <input id="pbAmount" type="number" step="0.01" min="0" placeholder="Montant (€)">
@@ -407,7 +408,8 @@ function render() {
     if (e.account) li.className = "acc-" + e.account;
     const l = document.createElement("div");
     l.innerHTML = "<div></div><div class='mute'></div>";
-    l.children[0].textContent = e.label;
+    const pp = e.planId && (planned.find(x => x.id === e.planId) || { label: e.planLabel });
+    l.children[0].textContent = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
     l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
     const r = document.createElement("div");
     r.innerHTML = `<span class="amt">${eur(e.amount)}</span>`;
@@ -572,7 +574,10 @@ const planBuysOf = id => planBuys.filter(x => x.planId === id);
 const planSpent = p => planBuysOf(p.id).reduce((t, x) => t + x.amount, 0);
 function planFor(m) {
   let total = 0, actual = 0;
-  planned.filter(p => p.month === m).forEach(p => { const A = planSpent(p); total += Math.max(p.amount, A); actual += A; });
+  planned.filter(p => p.month === m).forEach(p => {
+    const A = planSpent(p), Am = planBuysOf(p.id).filter(x => x.month === m).reduce((t, x) => t + x.amount, 0);
+    total += Am + Math.max(p.amount - A, 0); actual += Am;
+  });
   return { total, actual };
 }
 const planState = p => { const A = planSpent(p), left = p.amount - A, pct = p.amount > 0 ? Math.min(100, A / p.amount * 100) : 0; return { A, left, pct, col: left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)" }; };
@@ -604,7 +609,7 @@ function renderPlan() {
 function openPlan(id) {
   const p = planned.find(x => x.id === id); if (!p) return;
   planDetailId = id; $("planMain").hidden = true; $("planDetail").hidden = false;
-  $("pbDate").value = p.month === today.slice(0, 7) ? today : p.month + "-01";
+  $("pbDate").value = today;
   renderPlanDetail(p); window.scrollTo(0, 0);
 }
 function closePlan() { planDetailId = null; $("planMain").hidden = false; $("planDetail").hidden = true; }
@@ -639,7 +644,7 @@ $("pbAdd").onclick = async () => {
   const p = planned.find(x => x.id === planDetailId); if (!p) return;
   const label = $("pbLabel").value.trim(), amount = parseFloat($("pbAmount").value), date = $("pbDate").value;
   if (!label || !(amount > 0) || !date) return;
-  await addDoc(collection(db, "expenses"), { label, amount, date, category: p.category, account: $("pbAccount").value, planId: p.id, month: p.month, by: auth.currentUser.email, created: serverTimestamp() });
+  await addDoc(collection(db, "expenses"), { label, amount, date, category: p.category, account: $("pbAccount").value, planId: p.id, planLabel: p.label, month: date.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp() });
   $("pbLabel").value = ""; $("pbAmount").value = "";
 };
 
@@ -663,9 +668,7 @@ $("btnPlan").onclick = async () => {
   if (!label || !(amount > 0) || !month) return;
   const was = planEditId, data = { label, amount, month, category: $("pcat").value };
   if (was) {
-    const old = planned.find(x => x.id === was);
     await updateDoc(doc(db, "planned", was), data);
-    if (old && old.month !== month) await Promise.all(planBuysOf(was).map(x => updateDoc(doc(db, "expenses", x.id), { month })));
   } else {
     await addDoc(collection(db, "planned"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });
   }

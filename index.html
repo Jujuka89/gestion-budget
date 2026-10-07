@@ -42,8 +42,8 @@ li button{padding:3px 9px;margin-left:8px}
 .ch .tx{fill:var(--mute);font:11px Georgia,serif}
 .ch path{fill:none;stroke:var(--ok);stroke-width:2.5;stroke-linejoin:round}
 .ch circle{fill:var(--ok)}
-nav{display:flex;gap:6px;margin-top:16px}
-nav button{flex:1;background:none;color:var(--mute);border-color:var(--line)}
+nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+nav button{flex:1 1 auto;background:none;color:var(--mute);border-color:var(--line)}
 nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 [hidden]{display:none!important}
 </style>
@@ -78,6 +78,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   <nav>
     <button class="on" data-t="month">Mois en cours</button>
     <button data-t="fixed">Dépenses fixes</button>
+    <button data-t="planned">Dépenses prévues</button>
     <button data-t="split">Répartition</button>
   </nav>
 
@@ -105,21 +106,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     </div>
   </section>
 
-  <section>
-    <h2>📅 Dépenses prévues</h2>
-    <p class="mute">Réservez un budget pour un mois à venir (ex. 500 € de cadeaux en décembre). Il est déduit de « il vous restera » ce mois-là, et vos vraies dépenses de la même catégorie s'y imputent.</p>
-    <div class="row">
-      <input id="plabel" placeholder="Libellé (ex. cadeaux de Noël)">
-      <input id="pamount" type="number" step="0.01" min="0" placeholder="Budget (€)">
-      <select id="pcat" aria-label="Catégorie prévue">
-        <option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Loisirs</option>
-        <option>Santé</option><option>Enfants</option><option>Autre</option>
-      </select>
-      <input id="pmonth" type="month" aria-label="Mois prévu">
-      <button id="btnPlan">Prévoir</button>
-    </div>
-    <ul id="planList" style="margin-top:10px"></ul>
-  </section>
 
   <section>
     <h2>Ajouter une dépense</h2>
@@ -180,6 +166,24 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <ul id="fixedList"></ul>
       <p id="fixedEmpty" class="mute">Aucune dépense fixe. Ajoutez votre loyer ou vos abonnements ci-dessus.</p>
     </section>
+  </div>
+
+  <div id="tabPlanned" hidden>
+  <section>
+    <h2>📅 Dépenses prévues</h2>
+    <p class="mute">Réservez un budget pour un mois à venir (ex. 500 € de cadeaux en décembre). Il est déduit de « il vous restera » ce mois-là, et vos vraies dépenses de la même catégorie s'y imputent.</p>
+    <div class="row">
+      <input id="plabel" placeholder="Libellé (ex. cadeaux de Noël)">
+      <input id="pamount" type="number" step="0.01" min="0" placeholder="Budget (€)">
+      <select id="pcat" aria-label="Catégorie prévue">
+        <option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Loisirs</option>
+        <option>Santé</option><option>Enfants</option><option>Autre</option>
+      </select>
+      <input id="pmonth" type="month" aria-label="Mois prévu">
+      <button id="btnPlan">Prévoir</button>
+    </div>
+    <ul id="planList" style="margin-top:10px"></ul>
+  </section>
   </div>
 
   <div id="tabSplit" hidden>
@@ -376,7 +380,7 @@ function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y,
 function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
 
 let editId = null, curId = null;
-function show(v) { ["tabMonth", "tabFixed", "tabSplit", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabSplit", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -632,7 +636,7 @@ $("btnGoSplit").onclick = () => document.querySelector('nav [data-t="split"]').c
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   if (editId) resetFixedForm();
-  curId = null; show({ month: "tabMonth", fixed: "tabFixed", split: "tabSplit" }[b.dataset.t]);
+  curId = null; show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", split: "tabSplit" }[b.dataset.t]);
 });
 </script>
 </body>

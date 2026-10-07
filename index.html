@@ -82,6 +82,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </nav>
 
   <div id="tabMonth">
+  <section id="sNotice" hidden>
+    <div>⚠️ Les salaires de ce mois ne sont pas encore saisis : la répartition du compte commun ne peut pas être calculée.</div>
+    <div class="row" style="margin-top:10px"><button id="btnGoSplit">Saisir les salaires</button></div>
+  </section>
   <section>
     <div class="mute">Il vous reste</div>
     <div class="big" id="left">0 €</div>
@@ -214,7 +218,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false;
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false;
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -252,7 +256,7 @@ function listen() {
   if (!m) return;
   splitDirty = false; fillSplit();
   unsubs.push(onSnapshot(collection(db, "salaries"), s => {
-    salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
+    salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
     fillSplit(); renderSplit();
   }));
   unsubs.push(onSnapshot(doc(db, "budgets", m), s => {
@@ -475,15 +479,18 @@ function fillSplit() {
   let src = d;
   if (!d) { const ks = Object.keys(salaries).filter(k => k < m).sort(); if (ks.length) src = salaries[ks[ks.length - 1]]; }
   const p = (src && src.p) || [];
-  $("s1n").value = p[0] ? p[0].n : ""; $("s1a").value = p[0] ? p[0].a : "";
-  $("s2n").value = p[1] ? p[1].n : ""; $("s2a").value = p[1] ? p[1].a : "";
+  $("s1n").value = p[0] ? p[0].n : ""; $("s1a").value = d && p[0] ? p[0].a : "";
+  $("s2n").value = p[1] ? p[1].n : ""; $("s2a").value = d && p[1] ? p[1].a : "";
   $("sIncl").checked = !!(src && src.incl);
-  $("sHint").textContent = d ? "Salaires enregistrés pour ce mois." : src ? "Valeurs reprises du mois précédent : cliquez sur Enregistrer pour confirmer." : "Saisissez les deux salaires du mois.";
+  $("sHint").textContent = d ? "Salaires enregistrés pour ce mois." : "Salaires de ce mois à saisir : ils changent chaque mois.";
   renderSplit();
 }
 
 function renderSplit() {
   const m = $("month").value;
+  const have = !!(salaries[m] && salaries[m].p && salaries[m].p.some(x => x.a > 0));
+  $("sNotice").hidden = !salLoaded || have;
+  document.querySelector('nav [data-t="split"]').textContent = "Répartition" + (salLoaded && !have ? " •" : "");
   const fx = fixed.reduce((t, f) => t + (priceAt(f, m) || 0), 0);
   const incl = $("sIncl").checked, need = fx + (incl ? budget : 0);
   const a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0];
@@ -517,6 +524,7 @@ $("btnSplit").onclick = async () => {
   splitDirty = false;
 };
 
+$("btnGoSplit").onclick = () => document.querySelector('nav [data-t="split"]').click();
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   if (editId) resetFixedForm();

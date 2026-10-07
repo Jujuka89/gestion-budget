@@ -305,14 +305,15 @@ function render() {
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
   const jow = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
   const other = spent - fixedTotal - food - jow;
-  const left = sal - spent, pct = sal > 0 ? Math.min(100, spent / sal * 100) : 0;
+  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan;
+  const left = sal - committed, pct = sal > 0 ? Math.min(100, committed / sal * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("left").textContent = sal > 0 ? eur0(left) : "—";
   $("left").style.color = sal > 0 ? col : "var(--mute)";
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Jow (budget alimentaire)", jow], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (i >= 3 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);

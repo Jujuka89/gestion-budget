@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Budget de la maison</title>
 <style>
-:root{--bg:#eef2ef;--card:#fff;--ink:#1d2b26;--mute:#6b7a73;--line:#d9e1dc;--ok:#1f6f55;--warn:#c47a12;--bad:#b3392f}
-@media(prefers-color-scheme:dark){:root{--bg:#141a17;--card:#1c2420;--ink:#e6efe9;--mute:#93a39b;--line:#2b3731;--ok:#4fc29a;--warn:#e0a443;--bad:#e8736a}}
+:root{--bg:#eef2ef;--card:#fff;--ink:#1d2b26;--mute:#6b7a73;--line:#d9e1dc;--ok:#1f6f55;--warn:#c47a12;--bad:#b3392f;--rose:#fde4ee;--rose-b:#e0578a;--bleu:#dcebfb;--bleu-b:#3b82c4;--blanc:#fff;--blanc-b:#b9c4bd}
+@media(prefers-color-scheme:dark){:root{--bg:#141a17;--card:#1c2420;--ink:#e6efe9;--mute:#93a39b;--line:#2b3731;--ok:#4fc29a;--warn:#e0a443;--bad:#e8736a;--rose:#4a2535;--rose-b:#f08ab0;--bleu:#1f3550;--bleu-b:#6aaaf0;--blanc:#1c2420;--blanc-b:#5b6b63}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,'Iowan Old Style',serif}
 main{max-width:720px;margin:0 auto;padding:20px 16px 60px}
@@ -45,6 +45,12 @@ li button{padding:3px 9px;margin-left:8px}
 nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
 nav button{flex:1 1 auto;background:none;color:var(--mute);border-color:var(--line)}
 nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+#list li{padding:10px;margin-top:6px;border-top:0;border-left:4px solid transparent;border-radius:8px}
+#list li.acc-Marie{background:var(--rose);border-left-color:var(--rose-b)}
+#list li.acc-Julien{background:var(--bleu);border-left-color:var(--bleu-b)}
+#list li.acc-Commun{background:var(--blanc);border-left-color:var(--blanc-b)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 8px;font-size:.85rem;color:var(--mute)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border-left:4px solid}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -132,6 +138,11 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
 
   <section>
     <h2>Dépenses du mois</h2>
+    <div class="legend">
+      <span><i style="background:var(--rose);border-color:var(--rose-b)"></i>Marie</span>
+      <span><i style="background:var(--bleu);border-color:var(--bleu-b)"></i>Julien</span>
+      <span><i style="background:var(--blanc);border-color:var(--blanc-b)"></i>Compte commun</span>
+    </div>
     <ul id="list"></ul>
     <p id="empty" class="mute">Aucune dépense. Ajoutez la première ci-dessus.</p>
   </section>
@@ -356,6 +367,7 @@ function render() {
   $("list").innerHTML = "";
   expenses.forEach(e => {
     const li = document.createElement("li");
+    if (e.account) li.className = "acc-" + e.account;
     const l = document.createElement("div");
     l.innerHTML = "<div></div><div class='mute'></div>";
     l.children[0].textContent = e.label;

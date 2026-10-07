@@ -115,6 +115,9 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <option>Transport</option><option>Santé</option><option>Loisirs</option>
         <option>Enfants</option><option>Autre</option>
       </select>
+      <select id="account" aria-label="Compte">
+        <option>Julien</option><option>Marie</option><option selected>Commun</option>
+      </select>
       <input id="date" type="date">
       <button id="btnAdd">Ajouter</button>
     </div>
@@ -285,7 +288,7 @@ $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;
   if (!label || !(amount > 0) || !date) return;
   await addDoc(collection(db, "expenses"), {
-    label, amount, date, category: $("category").value,
+    label, amount, date, category: $("category").value, account: $("account").value,
     month: date.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp()
   });
   $("label").value = ""; $("amount").value = "";
@@ -329,7 +332,7 @@ function render() {
     const l = document.createElement("div");
     l.innerHTML = "<div></div><div class='mute'></div>";
     l.children[0].textContent = e.label;
-    l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category} · ${(e.by || "").split("@")[0]}`;
+    l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
     const r = document.createElement("div");
     r.innerHTML = `<span class="amt">${eur0(e.amount)}</span>`;
     const b = document.createElement("button");
@@ -509,7 +512,7 @@ $("btnFoodAdd").onclick = async () => {
   const amount = parseFloat($("foodAmt").value);
   if (!(amount > 0)) return;
   const m = $("month").value, date = m === today.slice(0, 7) ? today : m + "-01";
-  await addDoc(collection(db, "expenses"), { label: "Courses", amount, date, category: "Courses", month: m, by: auth.currentUser.email, created: serverTimestamp() });
+  await addDoc(collection(db, "expenses"), { label: "Courses", amount, date, category: "Courses", account: "Commun", month: m, by: auth.currentUser.email, created: serverTimestamp() });
   $("foodAmt").value = "";
 };
 

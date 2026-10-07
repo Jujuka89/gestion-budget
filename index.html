@@ -180,9 +180,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </div>
 
   <div id="tabPlanned" hidden>
+    <div id="planMain">
   <section>
-    <h2>📅 Dépenses prévues</h2>
-    <p class="mute">Réservez un budget pour un mois à venir (ex. 500 € de cadeaux en décembre). Il est déduit de « il vous restera » ce mois-là, et vos vraies dépenses de la même catégorie s'y imputent.</p>
+    <h2 id="ptitle">📅 Dépenses prévues</h2>
+    <p class="mute">Réservez un budget pour un mois à venir (ex. 500 € de cadeaux en décembre). Il est déduit de « il vous restera » ce mois-là. Cliquez sur une dépense prévue pour y ajouter vos achats, les modifier ou la supprimer.</p>
     <div class="row">
       <input id="plabel" placeholder="Libellé (ex. cadeaux de Noël)">
       <input id="pamount" type="number" step="0.01" min="0" placeholder="Budget (€)">
@@ -192,9 +193,41 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       </select>
       <input id="pmonth" type="month" aria-label="Mois prévu">
       <button id="btnPlan">Prévoir</button>
+      <button class="ghost" id="btnPlanCancel" hidden>Annuler</button>
     </div>
     <ul id="planList" style="margin-top:10px"></ul>
   </section>
+    </div>
+    <div id="planDetail" hidden>
+      <button class="ghost" id="pBack" style="margin-top:16px">← Retour</button>
+      <section>
+        <h2 id="pdName"></h2>
+        <div class="mute">Il reste sur ce budget</div>
+        <div class="big" id="pdLeft"></div>
+        <div class="bar"><i id="pdFill"></i></div>
+        <div class="mute" id="pdSum"></div>
+        <div class="mute" id="pdInfo" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:14px">
+          <button id="pdEdit">Modifier</button>
+          <button class="ghost" id="pdDel">Supprimer</button>
+        </div>
+      </section>
+      <section>
+        <h2>Ajouter un achat</h2>
+        <div class="row">
+          <input id="pbLabel" placeholder="Achat (ex. jouet, parfum)">
+          <input id="pbAmount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+          <select id="pbAccount" aria-label="Compte"><option>Julien</option><option>Marie</option><option selected>Commun</option></select>
+          <input id="pbDate" type="date" aria-label="Date de l'achat">
+          <button id="pbAdd">Ajouter</button>
+        </div>
+      </section>
+      <section>
+        <h2>Achats</h2>
+        <ul id="pbList"></ul>
+        <p id="pbEmpty" class="mute">Aucun achat pour l'instant.</p>
+      </section>
+    </div>
   </div>
 
   <div id="tabSplit" hidden>
@@ -259,7 +292,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [];
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], planBuys = [], planDetailId = null, planEditId = null;
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -296,6 +329,10 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   splitDirty = false; fillSplit();
+  unsubs.push(onSnapshot(query(collection(db, "expenses"), where("planId", ">", "")), s => {
+    planBuys = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render(); renderSplit();
+  }, () => {}));
   unsubs.push(onSnapshot(collection(db, "planned"), s => {
     planned = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit();
@@ -531,44 +568,109 @@ $("btnFixed").onclick = async () => {
   }
 };
 
+const planBuysOf = id => planBuys.filter(x => x.planId === id);
+const planSpent = p => planBuysOf(p.id).reduce((t, x) => t + x.amount, 0);
 function planFor(m) {
-  const pc = {};
-  planned.filter(p => p.month === m).forEach(p => pc[p.category] = (pc[p.category] || 0) + p.amount);
   let total = 0, actual = 0;
-  Object.entries(pc).forEach(([c, P]) => {
-    const A = expenses.filter(e => e.category === c).reduce((t, e) => t + e.amount, 0);
-    total += Math.max(P, A); actual += A;
-  });
+  planned.filter(p => p.month === m).forEach(p => { const A = planSpent(p); total += Math.max(p.amount, A); actual += A; });
   return { total, actual };
 }
-
-(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + 1); $("pmonth").value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); })();
+const planState = p => { const A = planSpent(p), left = p.amount - A, pct = p.amount > 0 ? Math.min(100, A / p.amount * 100) : 0; return { A, left, pct, col: left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)" }; };
+const monthLabel = ym => new Date(ym + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+const nextMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+$("pmonth").value = nextMonth();
 
 function renderPlan() {
+  if (planDetailId) { const p = planned.find(x => x.id === planDetailId); p ? renderPlanDetail(p) : closePlan(); }
   const m = $("month").value, cur = today.slice(0, 7);
   const list = planned.filter(p => p.month >= cur || p.month === m).sort((a, b) => a.month.localeCompare(b.month));
   $("planList").innerHTML = "";
   if (!list.length) { $("planList").innerHTML = "<li class='mute'>Aucune dépense prévue.</li>"; return; }
   list.forEach(p => {
-    const li = document.createElement("li"), l = document.createElement("div"), r = document.createElement("div");
-    l.innerHTML = "<div></div><div class='mute'></div>";
-    l.children[0].textContent = p.label;
-    let meta = `${new Date(p.month + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })} · ${p.category}`;
-    if (p.month === m) { const A = expenses.filter(e => e.category === p.category).reduce((t, e) => t + e.amount, 0); if (A) meta += ` · déjà dépensé ${eur0(A)}`; }
-    l.children[1].textContent = meta;
-    r.innerHTML = `<span class="amt">${eur0(p.amount)}</span>`;
-    const b = document.createElement("button");
-    b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + p.label);
-    b.onclick = () => confirm("Supprimer cette dépense prévue ?") && deleteDoc(doc(db, "planned", p.id));
-    r.append(b); li.append(l, r); $("planList").append(li);
+    const st = planState(p), li = document.createElement("li"), b = document.createElement("button");
+    b.className = "rowbtn";
+    b.innerHTML = "<span style='flex:1;min-width:0'><span class='nm'></span><small></small><span class='bar' style='display:block;height:6px;margin:6px 0 0'><i></i></span></span><span class='amt'><b></b><small></small></span>";
+    const L = b.children[0], R = b.children[1];
+    L.querySelector(".nm").textContent = p.label;
+    L.querySelector("small").textContent = `${monthLabel(p.month)} · ${p.category}`;
+    const f = L.querySelector("i"); f.style.width = st.pct + "%"; f.style.background = st.col;
+    R.querySelector("b").textContent = eur0(p.amount);
+    R.querySelector("small").textContent = st.left < 0 ? `dépassé de ${eur0(-st.left)}` : `reste ${eur0(st.left)}`;
+    b.onclick = () => openPlan(p.id);
+    li.append(b); $("planList").append(li);
   });
 }
+
+function openPlan(id) {
+  const p = planned.find(x => x.id === id); if (!p) return;
+  planDetailId = id; $("planMain").hidden = true; $("planDetail").hidden = false;
+  $("pbDate").value = p.month === today.slice(0, 7) ? today : p.month + "-01";
+  renderPlanDetail(p); window.scrollTo(0, 0);
+}
+function closePlan() { planDetailId = null; $("planMain").hidden = false; $("planDetail").hidden = true; }
+$("pBack").onclick = closePlan;
+
+function renderPlanDetail(p) {
+  const st = planState(p);
+  $("pdName").textContent = p.label;
+  $("pdLeft").textContent = eur(st.left); $("pdLeft").style.color = st.col;
+  $("pdFill").style.width = st.pct + "%"; $("pdFill").style.background = st.col;
+  $("pdSum").textContent = `${eur(st.A)} dépensés sur ${eur(p.amount)}`;
+  $("pdInfo").textContent = `Prévu en ${monthLabel(p.month)} · ${p.category}`;
+  $("pdEdit").onclick = () => startPlanEdit(p);
+  $("pdDel").onclick = () => confirm("Supprimer « " + p.label + " » ? Les achats déjà saisis restent dans les dépenses du mois.") && deleteDoc(doc(db, "planned", p.id));
+  const buys = planBuysOf(p.id).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  $("pbEmpty").hidden = buys.length > 0;
+  $("pbList").innerHTML = "";
+  buys.forEach(x => {
+    const li = document.createElement("li"), l = document.createElement("div"), r = document.createElement("div");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    l.children[0].textContent = x.label;
+    l.children[1].textContent = `${new Date(x.date).toLocaleDateString("fr-FR")}${x.account ? " · " + x.account : ""}`;
+    r.innerHTML = `<span class="amt">${eur(x.amount)}</span>`;
+    const d = document.createElement("button");
+    d.className = "ghost"; d.textContent = "Supprimer"; d.setAttribute("aria-label", "Supprimer " + x.label);
+    d.onclick = () => confirm("Supprimer cet achat ?") && deleteDoc(doc(db, "expenses", x.id));
+    r.append(d); li.append(l, r); $("pbList").append(li);
+  });
+}
+
+$("pbAdd").onclick = async () => {
+  const p = planned.find(x => x.id === planDetailId); if (!p) return;
+  const label = $("pbLabel").value.trim(), amount = parseFloat($("pbAmount").value), date = $("pbDate").value;
+  if (!label || !(amount > 0) || !date) return;
+  await addDoc(collection(db, "expenses"), { label, amount, date, category: p.category, account: $("pbAccount").value, planId: p.id, month: p.month, by: auth.currentUser.email, created: serverTimestamp() });
+  $("pbLabel").value = ""; $("pbAmount").value = "";
+};
+
+function resetPlanForm() {
+  planEditId = null;
+  $("plabel").value = ""; $("pamount").value = ""; $("pmonth").value = nextMonth();
+  $("btnPlan").textContent = "Prévoir"; $("btnPlanCancel").hidden = true;
+  $("ptitle").textContent = "📅 Dépenses prévues";
+}
+function startPlanEdit(p) {
+  closePlan(); planEditId = p.id;
+  $("plabel").value = p.label; $("pamount").value = p.amount; $("pcat").value = p.category; $("pmonth").value = p.month;
+  $("btnPlan").textContent = "Enregistrer"; $("btnPlanCancel").hidden = false;
+  $("ptitle").textContent = "Modifier la dépense prévue";
+  $("plabel").scrollIntoView({ behavior: "smooth", block: "center" }); $("plabel").focus();
+}
+$("btnPlanCancel").onclick = () => { const w = planEditId; resetPlanForm(); if (w) openPlan(w); };
 
 $("btnPlan").onclick = async () => {
   const label = $("plabel").value.trim(), amount = parseFloat($("pamount").value), month = $("pmonth").value;
   if (!label || !(amount > 0) || !month) return;
-  await addDoc(collection(db, "planned"), { label, amount, month, category: $("pcat").value, by: auth.currentUser.email, created: serverTimestamp() });
-  $("plabel").value = ""; $("pamount").value = "";
+  const was = planEditId, data = { label, amount, month, category: $("pcat").value };
+  if (was) {
+    const old = planned.find(x => x.id === was);
+    await updateDoc(doc(db, "planned", was), data);
+    if (old && old.month !== month) await Promise.all(planBuysOf(was).map(x => updateDoc(doc(db, "expenses", x.id), { month })));
+  } else {
+    await addDoc(collection(db, "planned"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });
+  }
+  resetPlanForm();
+  if (was) openPlan(was);
 };
 
 function foodBudgetFor(m) {
@@ -648,6 +750,7 @@ $("btnGoSplit").onclick = () => document.querySelector('nav [data-t="split"]').c
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   if (editId) resetFixedForm();
+  closePlan(); if (planEditId) resetPlanForm();
   curId = null; show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", split: "tabSplit" }[b.dataset.t]);
 });
 </script>

@@ -83,6 +83,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     </div>
   </header>
 
+  <section id="accessErr" hidden style="border-color:var(--bad)">
+    <div id="accessMsg"></div>
+  </section>
+
   <nav>
     <button class="on" data-t="month">Mois en cours</button>
     <button data-t="fixed">Dépenses fixes</button>
@@ -344,6 +348,8 @@ onAuthStateChanged(auth, user => {
   $("login").hidden = !!user;
   $("app").hidden = !user;
   unsubs.forEach(u => u()); unsubs = [];
+  $("accessErr").hidden = true;
+  if (user) $("btnOut").textContent = "Déconnexion (" + (user.email || "").split("@")[0] + ")";
   if (user) listen();
 });
 
@@ -368,45 +374,55 @@ $("pwd").onkeydown = e => { if (e.key === "Enter") $("btnLogin").click(); };
 $("btnOut").onclick = () => signOut(auth);
 $("month").onchange = () => { unsubs.forEach(u => u()); unsubs = []; listen(); };
 
+const snap = (ref, cb, ecb) => onSnapshot(ref, cb, e => { accessError(e); if (ecb) ecb(e); });
+function accessError(e) {
+  console.error(e);
+  if (e && e.code === "permission-denied") {
+    const who = auth.currentUser ? auth.currentUser.email : "?";
+    $("accessMsg").textContent = "⚠️ Accès refusé à certaines données pour " + who + ". Cet email doit figurer, écrit exactement pareil, dans les règles Firestore (console Firebase > Firestore > Règles).";
+    $("accessErr").hidden = false;
+  }
+}
+
 function listen() {
   const m = $("month").value;
   if (!m) return;
   splitDirty = false; fillSplit();
-  unsubs.push(onSnapshot(collection(db, "gifts"), s => {
+  unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGifts();
   }));
-  unsubs.push(onSnapshot(collection(db, "estimates"), s => {
+  unsubs.push(snap(collection(db, "estimates"), s => {
     estimates = {}; s.docs.forEach(d => estimates[d.id] = d.data());
     render(); renderSplit();
   }));
   const d0 = new Date(); d0.setDate(1); d0.setMonth(d0.getMonth() - 12);
   const startM = d0.getFullYear() + "-" + String(d0.getMonth() + 1).padStart(2, "0");
-  unsubs.push(onSnapshot(query(collection(db, "expenses"), where("month", ">=", startM)), s => {
+  unsubs.push(snap(query(collection(db, "expenses"), where("month", ">=", startM)), s => {
     histExp = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
   }, () => {}));
-  unsubs.push(onSnapshot(query(collection(db, "expenses"), where("planId", ">", "")), s => {
+  unsubs.push(snap(query(collection(db, "expenses"), where("planId", ">", "")), s => {
     planBuys = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit();
   }, () => {}));
-  unsubs.push(onSnapshot(collection(db, "planned"), s => {
+  unsubs.push(snap(collection(db, "planned"), s => {
     planned = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit();
   }));
-  unsubs.push(onSnapshot(collection(db, "foodBudgets"), s => {
+  unsubs.push(snap(collection(db, "foodBudgets"), s => {
     foodB = {}; s.docs.forEach(d => foodB[d.id] = d.data().amount);
     renderFood(); renderSplit();
   }));
-  unsubs.push(onSnapshot(collection(db, "salaries"), s => {
+  unsubs.push(snap(collection(db, "salaries"), s => {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
     fillSplit(); renderSplit(); render();
   }));
-  unsubs.push(onSnapshot(collection(db, "recurring"), s => {
+  unsubs.push(snap(collection(db, "recurring"), s => {
     fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé" })[o.category] || o.category; return o; });
     render(); renderSplit();
   }));
-  unsubs.push(onSnapshot(query(collection(db, "expenses"), where("month", "==", m)), s => {
+  unsubs.push(snap(query(collection(db, "expenses"), where("month", "==", m)), s => {
     expenses = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.date.localeCompare(a.date));
     render();
   }, () => { $("empty").textContent = "Accès refusé : ce compte n'est pas autorisé."; }));

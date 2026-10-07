@@ -205,6 +205,19 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     </div>
     <ul id="planList" style="margin-top:10px"></ul>
   </section>
+    <section>
+      <h2>🎁 Liste de cadeaux</h2>
+      <p class="mute">Vos idées de cadeaux avec leur prix. Cette liste n'est pas prise en compte dans le budget.</p>
+      <div class="row">
+        <select id="gPerson" aria-label="Pour qui"><option>Julien</option><option>Marie</option><option>Kélia</option><option>Milio</option></select>
+        <input id="gLabel" placeholder="Cadeau (ex. casque audio)">
+        <input id="gPrice" type="number" step="0.01" min="0" placeholder="Prix (€)">
+        <button id="btnGift">Ajouter</button>
+        <button class="ghost" id="btnGiftCancel" hidden>Annuler</button>
+      </div>
+      <div id="giftTotal" class="mute" style="margin-top:10px"></div>
+      <div id="giftList"></div>
+    </section>
     </div>
     <div id="planDetail" hidden>
       <button class="ghost" id="pBack" style="margin-top:16px">← Retour</button>
@@ -322,7 +335,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], gifts = [], gEditId = null, estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -359,6 +372,10 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   splitDirty = false; fillSplit();
+  unsubs.push(onSnapshot(collection(db, "gifts"), s => {
+    gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderGifts();
+  }));
   unsubs.push(onSnapshot(collection(db, "estimates"), s => {
     estimates = {}; s.docs.forEach(d => estimates[d.id] = d.data());
     render(); renderSplit();
@@ -813,6 +830,48 @@ function renderFuture() {
     box.append(d);
   }
 }
+
+const PEOPLE = ["Julien", "Marie", "Kélia", "Milio"];
+function renderGifts() {
+  const box = $("giftList"); box.innerHTML = "";
+  const todo = gifts.filter(g => !g.done).reduce((t, g) => t + (g.price || 0), 0);
+  $("giftTotal").textContent = gifts.length ? `${gifts.length} idée(s) · ${eur(todo)} restant à offrir (hors budget)` : "Aucune idée de cadeau pour l'instant.";
+  PEOPLE.forEach(p => {
+    const list = gifts.filter(g => g.person === p).sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.label || "").localeCompare(b.label || ""));
+    if (!list.length) return;
+    const h = document.createElement("div"); h.className = "cathead"; h.innerHTML = "<span></span><small></small>";
+    h.children[0].textContent = p;
+    h.children[1].textContent = eur(list.filter(g => !g.done).reduce((t, g) => t + (g.price || 0), 0));
+    const ul = document.createElement("ul");
+    list.forEach(g => {
+      const li = document.createElement("li"), lb = document.createElement("label");
+      lb.style.cssText = "display:flex;gap:8px;align-items:center;flex:1;min-width:0;cursor:pointer";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!g.done; cb.style.width = "auto";
+      cb.setAttribute("aria-label", "Déjà offert : " + g.label);
+      cb.onchange = () => updateDoc(doc(db, "gifts", g.id), { done: cb.checked });
+      const t = document.createElement("span"); t.textContent = g.label;
+      if (g.done) { t.style.textDecoration = "line-through"; t.style.color = "var(--mute)"; }
+      lb.append(cb, t);
+      const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center";
+      const pr = document.createElement("span"); pr.className = "amt"; pr.textContent = g.price ? eur(g.price) : "—";
+      const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + g.label);
+      ed.onclick = () => { gEditId = g.id; $("gPerson").value = g.person; $("gLabel").value = g.label; $("gPrice").value = g.price || ""; $("btnGift").textContent = "Enregistrer"; $("btnGiftCancel").hidden = false; $("gLabel").focus(); };
+      const del = document.createElement("button"); del.className = "ghost"; del.textContent = "✕"; del.setAttribute("aria-label", "Supprimer " + g.label);
+      del.onclick = () => confirm("Supprimer « " + g.label + " » de la liste ?") && deleteDoc(doc(db, "gifts", g.id));
+      r.append(pr, ed, del); li.append(lb, r); ul.append(li);
+    });
+    box.append(h, ul);
+  });
+}
+function resetGiftForm() { gEditId = null; $("gLabel").value = ""; $("gPrice").value = ""; $("btnGift").textContent = "Ajouter"; $("btnGiftCancel").hidden = true; }
+$("btnGiftCancel").onclick = resetGiftForm;
+$("btnGift").onclick = async () => {
+  const label = $("gLabel").value.trim(), price = parseFloat($("gPrice").value) || 0, person = $("gPerson").value;
+  if (!label) return;
+  if (gEditId) await updateDoc(doc(db, "gifts", gEditId), { person, label, price });
+  else await addDoc(collection(db, "gifts"), { person, label, price, done: false, by: auth.currentUser.email, created: serverTimestamp() });
+  resetGiftForm();
+};
 
 function foodBudgetFor(m) {
   if (foodB[m] != null) return foodB[m];

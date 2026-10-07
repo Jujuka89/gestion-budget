@@ -94,14 +94,14 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </section>
 
   <section>
-    <h2>🛒 Budget alimentaire</h2>
-    <div class="mute">Il reste pour les courses</div>
+    <h2>🛒 Budget alimentaire (Jow)</h2>
+    <div class="mute">Il reste pour Jow</div>
     <div class="big" id="foodLeft">0 €</div>
     <div class="bar"><i id="foodFill"></i></div>
     <div class="mute" id="foodSum"></div>
     <div class="row" style="margin-top:14px">
-      <input id="foodAmt" type="number" step="0.01" min="0" placeholder="Montant des courses (€)">
-      <button id="btnFoodAdd">Ajouter des courses</button>
+      <input id="foodAmt" type="number" step="0.01" min="0" placeholder="Montant de la commande Jow (€)">
+      <button id="btnFoodAdd">Ajouter une commande Jow</button>
     </div>
   </section>
 
@@ -111,7 +111,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <input id="label" placeholder="Libellé (ex. courses)">
       <input id="amount" type="number" step="0.01" min="0" placeholder="Montant (€)">
       <select id="category">
-        <option>Courses</option><option>Logement</option><option>Énergie</option>
+        <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
         <option>Transport</option><option>Santé</option><option>Loisirs</option>
         <option>Enfants</option><option>Autre</option>
       </select>
@@ -303,7 +303,8 @@ function render() {
   const spent = expenses.reduce((t, e) => t + e.amount, 0) + fixedTotal;
   const sal = ((salaries[m] && salaries[m].p) || []).reduce((t, x) => t + (x.a || 0), 0);
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
-  const other = spent - fixedTotal - food;
+  const jow = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
+  const other = spent - fixedTotal - food - jow;
   const left = sal - spent, pct = sal > 0 ? Math.min(100, spent / sal * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("left").textContent = sal > 0 ? eur0(left) : "—";
@@ -311,8 +312,8 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Autres dépenses", other]].forEach(([t, v], i) => {
-    if (i === 3 && !(v > 0)) return;
+  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Jow (budget alimentaire)", jow], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+    if (i >= 3 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
     if (i) d.children[1].style.fontWeight = 400;
@@ -500,7 +501,7 @@ function foodBudgetFor(m) {
 
 function renderFood() {
   const m = $("month").value, fb = foodBudgetFor(m);
-  const spent = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
+  const spent = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
   const left = fb - spent, pct = fb > 0 ? Math.min(100, spent / fb * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("foodLeft").textContent = eur0(left); $("foodLeft").style.color = col;
@@ -512,7 +513,7 @@ $("btnFoodAdd").onclick = async () => {
   const amount = parseFloat($("foodAmt").value);
   if (!(amount > 0)) return;
   const m = $("month").value, date = m === today.slice(0, 7) ? today : m + "-01";
-  await addDoc(collection(db, "expenses"), { label: "Courses", amount, date, category: "Courses", account: "Commun", month: m, by: auth.currentUser.email, created: serverTimestamp() });
+  await addDoc(collection(db, "expenses"), { label: "Jow", amount, date, category: "Jow", account: "Commun", month: m, by: auth.currentUser.email, created: serverTimestamp() });
   $("foodAmt").value = "";
 };
 

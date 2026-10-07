@@ -126,7 +126,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <select id="category">
         <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
         <option>Transport</option><option>Santé</option><option>Loisirs</option>
-        <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
+        <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Cigarette</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
       </select>
       <select id="account" aria-label="Compte">
         <option>Julien</option><option>Marie</option><option selected>Commun</option>
@@ -248,7 +248,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <section>
       <h2>Estimer une catégorie</h2>
       <div class="row">
-        <select id="estCat" aria-label="Catégorie"><option>Carburant</option><option>Santé</option><option>Imprévus</option><option>Transport</option><option>Loisirs</option><option>Enfants</option><option>Autre</option></select>
+        <select id="estCat" aria-label="Catégorie"><option>Carburant</option><option>Santé</option><option>Imprévus</option><option>Fast Food</option><option>Cigarette</option><option>Transport</option><option>Loisirs</option><option>Enfants</option><option>Autre</option></select>
         <input id="estAmt" type="number" step="1" min="0" placeholder="Budget estimé / mois (€)">
         <button id="btnEst">Enregistrer</button>
       </div>
@@ -720,7 +720,7 @@ $("btnPlan").onclick = async () => {
   if (was) openPlan(was);
 };
 
-const EST_CATS = ["Carburant", "Santé", "Imprévus", "Transport", "Loisirs", "Enfants", "Autre"];
+const EST_CATS = ["Carburant", "Santé", "Imprévus", "Fast Food", "Cigarette", "Transport", "Loisirs", "Enfants", "Autre"];
 const estActual = c => expenses.filter(e => e.category === c && !e.planId).reduce((t, e) => t + e.amount, 0);
 function estFor() {
   let total = 0, actual = 0;

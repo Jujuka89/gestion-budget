@@ -98,6 +98,22 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </section>
 
   <section>
+    <h2>🛒 Budget alimentaire</h2>
+    <div class="mute">Il reste pour les courses</div>
+    <div class="big" id="foodLeft">0 €</div>
+    <div class="bar"><i id="foodFill"></i></div>
+    <div class="mute" id="foodSum"></div>
+    <div class="row" style="margin-top:14px">
+      <input id="foodAmt" type="number" step="0.01" min="0" placeholder="Montant des courses (€)">
+      <button id="btnFoodAdd">Ajouter des courses</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="fbudget" type="number" step="1" min="0" placeholder="Budget alimentaire (€)" aria-label="Budget alimentaire du mois">
+      <button class="ghost" id="btnFoodBudget">Modifier le budget</button>
+    </div>
+  </section>
+
+  <section>
     <h2>Ajouter une dépense</h2>
     <div class="row">
       <input id="label" placeholder="Libellé (ex. courses)">
@@ -161,7 +177,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <p class="mute">Chacun verse sur le compte commun une part proportionnelle à son salaire du mois choisi (en haut de la page).</p>
       <div class="row"><input id="s1n" placeholder="Prénom 1"><input id="s1a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
       <div class="row" style="margin-top:8px"><input id="s2n" placeholder="Prénom 2"><input id="s2a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
-      <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="sIncl" type="checkbox" style="width:auto"> Inclure aussi le budget du mois (courses, loisirs…)</label>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="sIncl" type="checkbox" style="width:auto"> Inclure aussi le reste du budget du mois (loisirs, imprévus…)</label>
       <div class="row" style="margin-top:12px"><button id="btnSplit">Enregistrer les salaires</button></div>
       <p class="mute" id="sHint"></p>
     </section>
@@ -218,7 +234,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false;
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {};
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -255,6 +271,10 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   splitDirty = false; fillSplit();
+  unsubs.push(onSnapshot(collection(db, "foodBudgets"), s => {
+    foodB = {}; s.docs.forEach(d => foodB[d.id] = d.data().amount);
+    renderFood(); renderSplit();
+  }));
   unsubs.push(onSnapshot(collection(db, "salaries"), s => {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
     fillSplit(); renderSplit();
@@ -288,6 +308,7 @@ $("btnAdd").onclick = async () => {
 };
 
 function render() {
+  renderFood();
   const m = $("month").value;
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
@@ -473,6 +494,32 @@ $("btnFixed").onclick = async () => {
   }
 };
 
+function foodBudgetFor(m) {
+  if (foodB[m] != null) return foodB[m];
+  const ks = Object.keys(foodB).filter(k => k < m).sort();
+  return ks.length ? foodB[ks[ks.length - 1]] : 450;
+}
+
+function renderFood() {
+  const m = $("month").value, fb = foodBudgetFor(m);
+  const spent = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
+  const left = fb - spent, pct = fb > 0 ? Math.min(100, spent / fb * 100) : 0;
+  const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+  $("foodLeft").textContent = eur(left); $("foodLeft").style.color = col;
+  $("foodFill").style.width = pct + "%"; $("foodFill").style.background = col;
+  $("foodSum").textContent = `${eur(spent)} dépensés sur ${eur(fb)}`;
+  if (document.activeElement !== $("fbudget")) $("fbudget").value = fb;
+}
+
+$("btnFoodBudget").onclick = () => setDoc(doc(db, "foodBudgets", $("month").value), { amount: parseFloat($("fbudget").value) || 0 });
+$("btnFoodAdd").onclick = async () => {
+  const amount = parseFloat($("foodAmt").value);
+  if (!(amount > 0)) return;
+  const m = $("month").value, date = m === today.slice(0, 7) ? today : m + "-01";
+  await addDoc(collection(db, "expenses"), { label: "Courses", amount, date, category: "Courses", month: m, by: auth.currentUser.email, created: serverTimestamp() });
+  $("foodAmt").value = "";
+};
+
 function fillSplit() {
   if (splitDirty) return;
   const m = $("month").value, d = salaries[m];
@@ -492,13 +539,14 @@ function renderSplit() {
   $("sNotice").hidden = !salLoaded || have;
   document.querySelector('nav [data-t="split"]').textContent = "Répartition" + (salLoaded && !have ? " •" : "");
   const fx = fixed.reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const incl = $("sIncl").checked, need = fx + (incl ? budget : 0);
+  const food = foodBudgetFor(m), other = $("sIncl").checked ? Math.max(0, budget - fx - food) : 0, need = fx + food + other;
   const a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0];
   const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du mois", eur(fx)));
-  if (incl) $("sNeed").append(row("Budget du mois", eur(budget)));
+  $("sNeed").append(row("Budget alimentaire", eur(food)));
+  if (other) $("sNeed").append(row("Autres dépenses (reste du budget)", eur(other)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];

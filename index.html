@@ -87,7 +87,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="row" style="margin-top:10px"><button id="btnGoSplit">Saisir les salaires</button></div>
   </section>
   <section>
-    <div class="mute">Il vous reste sur vos 2 salaires</div>
+    <div class="mute">Il vous restera à la fin du mois sur vos deux salaires</div>
     <div class="big" id="left">0 €</div>
     <div class="bar"><i id="fill"></i></div>
     <div class="mute" id="sum"></div>
@@ -106,6 +106,22 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </section>
 
   <section>
+    <h2>📅 Dépenses prévues</h2>
+    <p class="mute">Réservez un budget pour un mois à venir (ex. 500 € de cadeaux en décembre). Il est déduit de « il vous restera » ce mois-là, et vos vraies dépenses de la même catégorie s'y imputent.</p>
+    <div class="row">
+      <input id="plabel" placeholder="Libellé (ex. cadeaux de Noël)">
+      <input id="pamount" type="number" step="0.01" min="0" placeholder="Budget (€)">
+      <select id="pcat" aria-label="Catégorie prévue">
+        <option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Loisirs</option>
+        <option>Santé</option><option>Enfants</option><option>Autre</option>
+      </select>
+      <input id="pmonth" type="month" aria-label="Mois prévu">
+      <button id="btnPlan">Prévoir</button>
+    </div>
+    <ul id="planList" style="margin-top:10px"></ul>
+  </section>
+
+  <section>
     <h2>Ajouter une dépense</h2>
     <div class="row">
       <input id="label" placeholder="Libellé (ex. courses)">
@@ -113,7 +129,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <select id="category">
         <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
         <option>Transport</option><option>Santé</option><option>Loisirs</option>
-        <option>Enfants</option><option>Autre</option>
+        <option>Enfants</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
       </select>
       <select id="account" aria-label="Compte">
         <option>Julien</option><option>Marie</option><option selected>Commun</option>
@@ -228,7 +244,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {};
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [];
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -265,6 +281,10 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   splitDirty = false; fillSplit();
+  unsubs.push(onSnapshot(collection(db, "planned"), s => {
+    planned = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render(); renderSplit();
+  }));
   unsubs.push(onSnapshot(collection(db, "foodBudgets"), s => {
     foodB = {}; s.docs.forEach(d => foodB[d.id] = d.data().amount);
     renderFood(); renderSplit();
@@ -296,7 +316,7 @@ $("btnAdd").onclick = async () => {
 };
 
 function render() {
-  renderFood();
+  renderFood(); renderPlan();
   const m = $("month").value;
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
@@ -304,8 +324,9 @@ function render() {
   const sal = ((salaries[m] && salaries[m].p) || []).reduce((t, x) => t + (x.a || 0), 0);
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
   const jow = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
-  const other = spent - fixedTotal - food - jow;
-  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan;
+  const pl = planFor(m);
+  const other = spent - fixedTotal - food - jow - pl.actual;
+  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan + (pl.total - pl.actual);
   const left = sal - committed, pct = sal > 0 ? Math.min(100, committed / sal * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("left").textContent = sal > 0 ? eur0(left) : "—";
@@ -313,7 +334,7 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [["Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (i >= 3 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
@@ -494,6 +515,46 @@ $("btnFixed").onclick = async () => {
   }
 };
 
+function planFor(m) {
+  const pc = {};
+  planned.filter(p => p.month === m).forEach(p => pc[p.category] = (pc[p.category] || 0) + p.amount);
+  let total = 0, actual = 0;
+  Object.entries(pc).forEach(([c, P]) => {
+    const A = expenses.filter(e => e.category === c).reduce((t, e) => t + e.amount, 0);
+    total += Math.max(P, A); actual += A;
+  });
+  return { total, actual };
+}
+
+(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + 1); $("pmonth").value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); })();
+
+function renderPlan() {
+  const m = $("month").value, cur = today.slice(0, 7);
+  const list = planned.filter(p => p.month >= cur || p.month === m).sort((a, b) => a.month.localeCompare(b.month));
+  $("planList").innerHTML = "";
+  if (!list.length) { $("planList").innerHTML = "<li class='mute'>Aucune dépense prévue.</li>"; return; }
+  list.forEach(p => {
+    const li = document.createElement("li"), l = document.createElement("div"), r = document.createElement("div");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    l.children[0].textContent = p.label;
+    let meta = `${new Date(p.month + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })} · ${p.category}`;
+    if (p.month === m) { const A = expenses.filter(e => e.category === p.category).reduce((t, e) => t + e.amount, 0); if (A) meta += ` · déjà dépensé ${eur0(A)}`; }
+    l.children[1].textContent = meta;
+    r.innerHTML = `<span class="amt">${eur0(p.amount)}</span>`;
+    const b = document.createElement("button");
+    b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + p.label);
+    b.onclick = () => confirm("Supprimer cette dépense prévue ?") && deleteDoc(doc(db, "planned", p.id));
+    r.append(b); li.append(l, r); $("planList").append(li);
+  });
+}
+
+$("btnPlan").onclick = async () => {
+  const label = $("plabel").value.trim(), amount = parseFloat($("pamount").value), month = $("pmonth").value;
+  if (!label || !(amount > 0) || !month) return;
+  await addDoc(collection(db, "planned"), { label, amount, month, category: $("pcat").value, by: auth.currentUser.email, created: serverTimestamp() });
+  $("plabel").value = ""; $("pamount").value = "";
+};
+
 function foodBudgetFor(m) {
   if (foodB[m] != null) return foodB[m];
   const ks = Object.keys(foodB).filter(k => k < m).sort();
@@ -536,13 +597,14 @@ function renderSplit() {
   $("sNotice").hidden = !salLoaded || have;
   document.querySelector('nav [data-t="split"]').textContent = "Répartition" + (salLoaded && !have ? " •" : "");
   const fx = fixed.reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const food = foodBudgetFor(m), need = fx + food;
+  const food = foodBudgetFor(m), pln = planFor(m).total, need = fx + food + pln;
   const a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0];
   const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du mois", eur(fx)));
   $("sNeed").append(row("Budget alimentaire", eur(food)));
+  if (pln) $("sNeed").append(row("Dépenses prévues", eur(pln)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];

@@ -51,6 +51,8 @@ nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 #list li.acc-Commun{background:var(--blanc);border-left-color:var(--blanc-b)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 8px;font-size:.85rem;color:var(--mute)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border-left:4px solid}
+.fut{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;min-width:0}
+.fut b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -94,6 +96,8 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div>⚠️ Les salaires de ce mois ne sont pas encore saisis : la répartition du compte commun ne peut pas être calculée.</div>
     <div class="row" style="margin-top:10px"><button id="btnGoSplit">Saisir les salaires</button></div>
   </section>
+  <div class="mute" style="margin-top:16px;font-size:.85rem">Prévisions des 3 prochains mois (ce qu'il restera sur les salaires)</div>
+  <div id="future" style="display:flex;gap:8px;margin-top:6px"></div>
   <section>
     <div class="mute">Il vous restera à la fin du mois sur vos deux salaires</div>
     <div class="big" id="left">0 €</div>
@@ -404,7 +408,7 @@ $("btnAdd").onclick = async () => {
 };
 
 function render() {
-  renderFood(); renderPlan(); renderEst();
+  renderFood(); renderPlan(); renderEst(); renderFuture();
   const m = $("month").value;
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
@@ -786,6 +790,28 @@ function miniGauge(label, spent, budget) {
   sp[0].textContent = label; sp[1].textContent = `${eur0(spent)} / ${eur0(budget)}`;
   const f = w.querySelector("i"); f.style.width = pct + "%"; f.style.background = col;
   return w;
+}
+
+const nmo = (ym, k) => { const d = new Date(+ym.slice(0, 4), +ym.slice(5) - 1 + k, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+function renderFuture() {
+  const m = $("month").value, box = $("future");
+  box.innerHTML = "";
+  if (!m) return;
+  const estTot = Object.values(estimates).reduce((t, v) => t + v.amount, 0);
+  for (let k = 1; k <= 3; k++) {
+    const x = nmo(m, k);
+    const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
+    const av = real > 0 ? null : salAvg(x);
+    const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
+    const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot;
+    const d = document.createElement("div"); d.className = "fut";
+    d.innerHTML = "<div class='mute'></div><b></b><div class='mute' style='font-size:.75rem'></div>";
+    d.children[0].textContent = new Date(x + "-01").toLocaleDateString("fr-FR", { month: "long" });
+    d.children[1].textContent = sal > 0 ? eur0(sal - out) : "—";
+    if (sal > 0 && sal - out < 0) d.children[1].style.color = "var(--bad)";
+    d.children[2].textContent = sal > 0 ? (real > 0 ? "salaires saisis" : "prévision") : "salaires inconnus";
+    box.append(d);
+  }
 }
 
 function foodBudgetFor(m) {

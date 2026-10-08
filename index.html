@@ -247,6 +247,24 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     </section>
   </div>
 
+  <div id="tabAcct" hidden>
+    <button class="ghost" id="btnAcctBack" style="margin-top:16px">← Retour</button>
+    <section id="acSum">
+      <h2 id="acTitle"></h2>
+      <div class="mute">Il reste ce mois-ci</div>
+      <div class="big" id="acLeft"></div>
+      <div id="acInfo" style="margin-top:8px"></div>
+    </section>
+    <section><h2>Dépenses par catégorie · ce mois-ci</h2><div id="acPie1"></div></section>
+    <section><h2>Dépenses par catégorie · 12 derniers mois</h2><div id="acPie2"></div></section>
+    <section><h2>Dépenses des 6 derniers mois</h2><div id="acBars"></div></section>
+    <section>
+      <h2>Transactions du mois</h2>
+      <ul id="acList"></ul>
+      <p id="acEmpty" class="mute">Aucune transaction ce mois-ci sur ce compte.</p>
+    </section>
+  </div>
+
   <div id="tabPlanned" hidden>
     <div id="planMain">
   <section>
@@ -548,7 +566,7 @@ function render() {
     if (i === 6) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
   });
 
-  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m);
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); if (acctName) renderAcctPage();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
@@ -597,7 +615,8 @@ function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), 
 
 let editId = null, curId = null;
 let incomes = [], incEditId = null, incCurId = null;
-function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+let acctName = null;
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -1297,11 +1316,11 @@ function acctRem(m) {
     const c = common * a[p] / tot;
     const pf = fixed.filter(f => f.account === p).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
     const pe = expenses.filter(e => e.account === p).reduce((t, e) => t + e.amount, 0);
-    out[p] = { c, left: a[p] - c - pf - pe - pendCost(m, p) + incAcct(p, m) };
+    out[p] = { c, sal: a[p], pf, pe, left: a[p] - c - pf - pe - pendCost(m, p) + incAcct(p, m) };
   });
   const expC = expenses.filter(isCom).reduce((t, e) => t + e.amount, 0);
   const incC = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && isCom(w)).reduce((t, w) => t + (w.amount || 0), 0);
-  out.Commun = { c: common, left: common + incAcct("Commun", m) - fxC - expC + incC };
+  out.Commun = { c: common, fxC, expC, incC, left: common + incAcct("Commun", m) - fxC - expC + incC };
   return out;
 }
 function renderAcct(m) {
@@ -1311,11 +1330,101 @@ function renderAcct(m) {
     const d = document.createElement("div");
     d.style.cssText = `flex:1 1 30%;min-width:0;border-radius:10px;padding:10px;background:var(--${col});border:1px solid var(--line);border-left:4px solid var(--${col}-b)`;
     d.innerHTML = "<div class='mute'></div><b style='display:block;font-size:1.3rem;font-variant-numeric:tabular-nums'></b><div class='mute' style='font-size:.75rem'></div>";
-    d.children[0].textContent = "Compte " + p;
+    d.children[0].textContent = "Compte " + p + " ›"; d.style.cursor = "pointer"; d.tabIndex = 0; d.setAttribute("role", "button"); d.onclick = () => openAcct(p); d.onkeydown = e => { if (e.key === "Enter") openAcct(p); };
     d.children[1].textContent = eur0(r[p].left);
     if (r[p].left < 0) d.children[1].style.color = "var(--bad)";
     d.children[2].textContent = p === "Commun" ? "alimenté par vos 2 parts (" + eur0(r[p].c) + ")" : "après sa part du compte commun (" + eur0(r[p].c) + ")";
     box.append(d);
+  });
+}
+
+const PIE_COL = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"];
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const accMatch = (x, name) => name === "Commun" ? (x.account !== "Julien" && x.account !== "Marie") : x.account === name;
+
+function acctMonthCats(name, x) {
+  const c = {};
+  histExp.filter(e => e.month === x && accMatch(e, name)).forEach(e => { const k = e.category || "Autre"; c[k] = (c[k] || 0) + e.amount; });
+  fixed.filter(f => accMatch(f, name)).forEach(f => { const p = priceAt(f, x) || 0; if (p) { const k = f.category || "Autre"; c[k] = (c[k] || 0) + p; } });
+  return c;
+}
+function pieHtml(cats) {
+  let en = Object.entries(cats).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+  if (en.length > 9) { const rest = en.slice(8).reduce((t, e) => t + e[1], 0); en = en.slice(0, 8).concat([["Autres", rest]]); }
+  const tot = en.reduce((t, e) => t + e[1], 0);
+  if (!(tot > 0)) return '<p class="mute">Aucune dépense sur cette période.</p>';
+  const C = 80, R = 74; let ang = -Math.PI / 2, svg = "", leg = "";
+  en.forEach(([l, v], i) => {
+    const col = PIE_COL[i % PIE_COL.length], a = v / tot * 2 * Math.PI;
+    if (en.length === 1) svg += `<circle cx="${C}" cy="${C}" r="${R}" fill="${col}"><title>${esc(l)} : ${eur0(v)}</title></circle>`;
+    else {
+      const x1 = C + R * Math.cos(ang), y1 = C + R * Math.sin(ang), x2 = C + R * Math.cos(ang + a), y2 = C + R * Math.sin(ang + a);
+      svg += `<path d="M${C} ${C} L${x1} ${y1} A${R} ${R} 0 ${a > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z" fill="${col}"><title>${esc(l)} : ${eur0(v)}</title></path>`;
+    }
+    ang += a;
+    leg += `<div class="cat" style="font-size:.9rem"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col};margin-right:6px"></i>${esc(l)}</span><b style="font-weight:400">${eur0(v)} · ${Math.round(v / tot * 100)} %</b></div>`;
+  });
+  svg += `<circle cx="${C}" cy="${C}" r="40" fill="var(--card)"/><text x="${C}" y="${C + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">${eur0(tot)}</text>`;
+  return `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><svg viewBox="0 0 160 160" width="170" height="170" role="img" aria-label="Camembert des dépenses par catégorie">${svg}</svg><div style="flex:1;min-width:190px">${leg}</div></div>`;
+}
+function barsHtml(items, color) {
+  const mx = Math.max(...items.map(i => i[1]), 1), W = 340, H = 150, L = 6, B = 24, T = 18, bw = (W - 2 * L) / items.length;
+  let g = "";
+  items.forEach(([lab, v], i) => {
+    const h = v / mx * (H - B - T), x = L + i * bw + bw * 0.15, w = bw * 0.7;
+    g += `<rect x="${x}" y="${H - B - h}" width="${w}" height="${Math.max(h, v > 0 ? 2 : 0)}" rx="3" fill="${color}"><title>${esc(lab)} : ${eur0(v)}</title></rect>`;
+    g += `<text x="${x + w / 2}" y="${H - B - h - 4}" text-anchor="middle" font-size="10" fill="var(--ink)">${v > 0 ? eur0(v) : ""}</text>`;
+    g += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--mute)">${esc(lab)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Dépenses des 6 derniers mois">${g}</svg>`;
+}
+function openAcct(name) {
+  acctName = name;
+  document.querySelectorAll("nav button").forEach(x => x.classList.remove("on"));
+  show("tabAcct"); renderAcctPage(); window.scrollTo(0, 0);
+}
+$("btnAcctBack").onclick = () => document.querySelector('nav [data-t="month"]').click();
+
+function renderAcctPage() {
+  const name = acctName, m = $("month").value, r = acctRem(m), info = r && r[name];
+  const col = { Julien: "bleu", Marie: "rose", Commun: "blanc" }[name];
+  $("acSum").style.cssText = `background:var(--${col});border-left:4px solid var(--${col}-b)`;
+  $("acTitle").textContent = "Compte " + name + " · " + monthLabel(m);
+  $("acLeft").textContent = info ? eur0(info.left) : "—";
+  $("acLeft").style.color = info && info.left < 0 ? "var(--bad)" : "var(--ink)";
+  $("acInfo").innerHTML = "";
+  const pc = pendCost(m, name), inc = incAcct(name, m);
+  let rows = [];
+  if (info && name === "Commun") rows = [["+ Parts versées par Julien et Marie", info.c], ["+ Revenus fixes", inc], ["− Dépenses fixes", info.fxC], ["− Dépenses du mois", info.expC], ["+ Crédits reçus", info.incC]];
+  else if (info) rows = [["+ Salaire du mois", info.sal], ["+ Revenus fixes", inc], ["− Part du compte commun", info.c], ["− Dépenses fixes", info.pf], ["− Dépenses du mois", info.pe], pc > 0 ? ["− Paiements en attente", pc] : ["+ Crédits attendus ou reçus", -pc]];
+  else $("acInfo").textContent = "Saisissez les salaires du mois pour voir le détail.";
+  rows.forEach(([t, v], i) => {
+    if (i > 1 && !(v > 0)) return;
+    const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
+    d.children[0].textContent = t; d.children[1].textContent = eur0(v);
+    d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)"; d.children[1].style.fontWeight = 400;
+    $("acInfo").append(d);
+  });
+  $("acPie1").innerHTML = pieHtml(acctMonthCats(name, m));
+  const all = {}, bars = [];
+  for (let k = -11; k <= 0; k++) {
+    const x = nmo(m, k), c = acctMonthCats(name, x);
+    Object.entries(c).forEach(([key, v]) => all[key] = (all[key] || 0) + v);
+    if (k >= -5) bars.push([new Date(x + "-01").toLocaleDateString("fr-FR", { month: "short" }), Object.values(c).reduce((t, v) => t + v, 0)]);
+  }
+  $("acPie2").innerHTML = pieHtml(all);
+  $("acBars").innerHTML = barsHtml(bars, `var(--${col}-b)`);
+  const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && accMatch(w, name));
+  const list = [...expenses.filter(e => accMatch(e, name)).map(e => ({ k: "e", x: e, date: e.date || "" })), ...credits.map(w => ({ k: "c", x: w, date: w.doneDate }))].sort((a, b) => b.date.localeCompare(a.date));
+  $("acEmpty").hidden = list.length > 0; $("acList").innerHTML = "";
+  list.forEach(({ k, x, date }) => {
+    const li = document.createElement("li"), l = document.createElement("div"), a = document.createElement("span");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    l.children[0].textContent = x.label;
+    l.children[1].textContent = new Date(date).toLocaleDateString("fr-FR") + " · " + (k === "e" ? x.category : "Crédit");
+    a.className = "amt"; a.textContent = (k === "e" ? "− " : "+ ") + eur(x.amount || 0);
+    a.style.cssText = "font-weight:700;color:" + (k === "e" ? "var(--bad)" : "var(--ok)");
+    li.append(l, a); $("acList").append(li);
   });
 }
 
@@ -1394,7 +1503,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   if (editId) resetFixedForm();
   closePlan(); if (planEditId) resetPlanForm();
-  curId = null; incCurId = null; if (incEditId) resetIncForm(); show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", estimated: "tabEstimated", split: "tabSplit" }[b.dataset.t]);
+  curId = null; incCurId = null; acctName = null; if (incEditId) resetIncForm(); show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", estimated: "tabEstimated", split: "tabSplit" }[b.dataset.t]);
 });
 </script>
 </body>

@@ -57,6 +57,9 @@ nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border-left:4px solid}
 .fut{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;min-width:0}
 .fut b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
+#waitList li{padding:6px 8px;margin-top:4px;gap:8px}
+#waitList button{padding:4px 9px;font-size:.85rem}
+@media(max-width:600px){#waitList .vt{display:none}}
 @media(min-width:1000px){
   main{max-width:1900px;padding-left:12px;padding-right:12px}
   #login{max-width:520px;margin-left:auto;margin-right:auto}
@@ -157,7 +160,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
 
   <section>
     <h2>⏳ En attente</h2>
-    <p class="mute">Les transactions cochées « En attente » à la saisie. Elles sont prises en compte dans le budget du mois prévu (ou du mois en cours sans date). Cliquez sur « Valider » quand le paiement est débité ou le crédit reçu : un paiement devient alors une vraie dépense.</p>
+    <details class="mute" style="font-size:.85rem"><summary>ℹ️ Comment ça marche</summary><p style="margin:6px 0 0">Les transactions cochées « En attente » à la saisie. Elles sont prises en compte dans le budget du mois prévu (ou du mois en cours sans date). Cliquez sur « ✓ Valider » quand le paiement est débité ou le crédit reçu : un paiement devient alors une vraie dépense.</p></details>
     <div id="waitTotal" class="mute" style="margin-top:10px"></div>
     <ul id="waitList"></ul>
   </section>
@@ -1159,27 +1162,29 @@ async function validateWait(w) {
   await updateDoc(doc(db, "pending", w.id), { done: true, doneDate: today });
 }
 
+let waitAll = false;
 function renderWait() {
   const ul = $("waitList"); ul.innerHTML = "";
   const open = waits.filter(w => !w.done), sum = t => open.filter(w => w.type === t).reduce((a, w) => a + (w.amount || 0), 0);
   $("waitTotal").textContent = waits.length ? `À payer : ${eur(sum("pay"))} · À recevoir : ${eur(sum("in"))}` : "Rien en attente pour l'instant.";
-  waits.slice().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.due || "9999").localeCompare(b.due || "9999") || (a.label || "").localeCompare(b.label || "")).forEach(w => {
+  const arr = waits.slice().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.due || "9999").localeCompare(b.due || "9999") || (a.label || "").localeCompare(b.label || ""));
+  (waitAll ? arr : arr.slice(0, 5)).forEach(w => {
     const li = document.createElement("li"), isIn = w.type === "in";
     if (w.account) li.className = "acc-" + w.account;
     const box = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
     box.style.cssText = "flex:1;min-width:0";
-    t.textContent = w.label; m.className = "mute"; m.style.fontSize = ".8rem";
+    t.textContent = w.label; m.className = "mute"; m.style.cssText = "font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
     const late = !w.done && w.due && w.due < today;
     m.textContent = (isIn ? "Revenu attendu" : "Paiement à faire") + (!isIn && w.cat ? " · " + w.cat : "") + (w.account ? " · " + w.account : "") + (w.due ? " · " + new Date(w.due).toLocaleDateString("fr-FR") : "") + (late ? " · en retard" : "") + (w.done ? (isIn ? " · reçu" : " · payé") : "");
     if (late) m.style.color = "var(--bad)";
-    if (w.done) t.style.cssText = "text-decoration:line-through;color:var(--mute)";
+    t.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" + (w.done ? ";text-decoration:line-through;color:var(--mute)" : "");
     box.append(t, m);
-    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end";
+    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center;flex:none;justify-content:flex-end";
     const a = document.createElement("span"); a.className = "amt"; a.textContent = (isIn ? "+ " : "− ") + eur(w.amount || 0);
     a.style.cssText = "font-weight:700;color:" + (isIn ? "var(--ok)" : "var(--bad)");
     r.append(a);
     if (!w.done) {
-      const ok = document.createElement("button"); ok.textContent = "✓ Valider"; ok.setAttribute("aria-label", "Valider " + w.label);
+      const ok = document.createElement("button"); ok.innerHTML = "✓<span class='vt'> Valider</span>"; ok.setAttribute("aria-label", "Valider " + w.label);
       ok.onclick = () => validateWait(w);
       const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + w.label);
       ed.onclick = () => startWaitEdit(w);
@@ -1189,6 +1194,12 @@ function renderWait() {
     del.onclick = () => confirm("Supprimer « " + w.label + " » ?" + (w.done && !isIn ? " La dépense déjà validée reste dans les dépenses du mois." : "")) && deleteDoc(doc(db, "pending", w.id));
     r.append(del); li.append(box, r); ul.append(li);
   });
+  if (arr.length > 5) {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.className = "ghost"; b.style.width = "100%"; b.textContent = waitAll ? "Réduire" : `Voir les ${arr.length - 5} autres`;
+    b.onclick = () => { waitAll = !waitAll; renderWait(); };
+    li.append(b); ul.append(li);
+  }
 }
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
 const MED = "Médecin (remboursé)";

@@ -266,6 +266,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <h2>Estimer une catégorie</h2>
       <div class="row">
         <select id="estCat" aria-label="Catégorie"><option>Carburant</option><option>Santé</option><option>Imprévus</option><option>Fast Food</option><option>Cigarette</option><option>Animaux</option><option>Transport</option><option>Loisirs</option><option>Enfants</option><option>Autre</option></select>
+        <select id="estMode" aria-label="Mode de calcul"><option value="manual">Valeur saisie par moi</option><option value="auto">Moyenne depuis toujours</option></select>
         <input id="estAmt" type="number" step="1" min="0" placeholder="Budget estimé / mois (€)">
         <button id="btnEst">Enregistrer</button>
       </div>
@@ -396,11 +397,9 @@ function listen() {
     estimates = {}; s.docs.forEach(d => estimates[d.id] = d.data());
     render(); renderSplit();
   }));
-  const d0 = new Date(); d0.setDate(1); d0.setMonth(d0.getMonth() - 12);
-  const startM = d0.getFullYear() + "-" + String(d0.getMonth() + 1).padStart(2, "0");
-  unsubs.push(snap(query(collection(db, "expenses"), where("month", ">=", startM)), s => {
+  unsubs.push(snap(collection(db, "expenses"), s => {
     histExp = s.docs.map(d => ({ id: d.id, ...d.data() }));
-    render();
+    avgC = estAvg(); render();
   }, () => {}));
   unsubs.push(snap(query(collection(db, "expenses"), where("planId", ">", "")), s => {
     planBuys = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -468,7 +467,7 @@ function render() {
     if (i) d.children[1].style.fontWeight = 400;
     $("sum").append(d);
     if (i === 3) $("sum").append(miniGauge("Commandes Jow ce mois-ci", jow, jowPlan));
-    if (i === 5) Object.entries(estimates).sort((a, b) => b[1].amount - a[1].amount).forEach(([c, v]) => $("sum").append(miniGauge(c, estActual(c), v.amount)));
+    if (i === 5) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
   });
 
   curLeft = { m, v: sal > 0 ? left : null }; renderGifts();
@@ -758,7 +757,7 @@ const EST_CATS = ["Carburant", "Santé", "Imprévus", "Fast Food", "Cigarette", 
 const estActual = c => expenses.filter(e => e.category === c && !e.planId).reduce((t, e) => t + e.amount, 0);
 function estFor() {
   let total = 0, actual = 0;
-  Object.entries(estimates).forEach(([c, v]) => { const A = estActual(c); total += Math.max(v.amount, A); actual += A; });
+  Object.keys(estimates).forEach(c => { const A = estActual(c); total += Math.max(estAmt(c), A); actual += A; });
   return { total, actual };
 }
 function estAvg() {
@@ -766,18 +765,21 @@ function estAvg() {
   if (!past.length) return { n: 0, avg: {} };
   const mi = ym => +ym.slice(0, 4) * 12 + +ym.slice(5) - 1;
   const first = past.reduce((a, e) => e.month < a ? e.month : a, past[0].month);
-  const n = Math.max(1, Math.min(12, mi(cur) - mi(first)));
+  const n = Math.max(1, mi(cur) - mi(first));
   const sums = {};
   past.filter(e => !e.planId && EST_CATS.includes(e.category)).forEach(e => sums[e.category] = (sums[e.category] || 0) + e.amount);
   const avg = {}; Object.keys(sums).forEach(c => avg[c] = sums[c] / n);
   return { n, avg };
 }
 
+let avgC = { n: 0, avg: {} };
+const estAmt = c => { const v = estimates[c]; if (!v) return 0; return v.mode === "auto" ? Math.round(avgC.avg[c] || 0) : (v.amount || 0); };
+
 function renderEst() {
-  const { n, avg } = estAvg();
-  $("estTotal").textContent = eur0(Object.values(estimates).reduce((t, v) => t + v.amount, 0)) + " / mois";
+  const { n, avg } = avgC;
+  $("estTotal").textContent = eur0(Object.keys(estimates).reduce((t, c) => t + estAmt(c), 0)) + " / mois";
   const cats = EST_CATS.filter(c => estimates[c] || avg[c] > 0)
-    .sort((a, b) => ((estimates[b] || {}).amount || 0) - ((estimates[a] || {}).amount || 0) || (avg[b] || 0) - (avg[a] || 0));
+    .sort((a, b) => estAmt(b) - estAmt(a) || (avg[b] || 0) - (avg[a] || 0));
   $("estEmpty").hidden = cats.length > 0;
   $("estList").innerHTML = "";
   const btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; return b; };
@@ -786,10 +788,10 @@ function renderEst() {
     li.style.display = "block";
     const head = document.createElement("div"); head.className = "cat"; head.innerHTML = "<b></b><b></b>";
     head.children[0].textContent = c;
-    head.children[1].textContent = est ? eur0(est.amount) + " / mois" : "";
+    head.children[1].textContent = est ? eur0(estAmt(c)) + " / mois" : "";
     li.append(head);
     if (est) {
-      const pct = est.amount > 0 ? Math.min(100, A / est.amount * 100) : 0, left = est.amount - A;
+      const E = estAmt(c), pct = E > 0 ? Math.min(100, A / E * 100) : 0, left = E - A;
       const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
       const bar = document.createElement("div"); bar.className = "bar"; bar.innerHTML = "<i></i>";
       bar.firstChild.style.width = pct + "%"; bar.firstChild.style.background = col; li.append(bar);
@@ -797,21 +799,27 @@ function renderEst() {
       t.textContent = `Ce mois-ci : ${eur0(A)} dépensés, ${left < 0 ? "dépassé de " + eur0(-left) : "reste " + eur0(left)}`; li.append(t);
     }
     const m = document.createElement("div"); m.className = "mute";
-    m.textContent = avg[c] > 0 ? `Moyenne constatée : ${eur0(avg[c])} / mois (sur ${n} mois)` : (n ? "Pas de dépense passée dans cette catégorie" : "Moyenne : disponible après un mois complet");
+    m.textContent = (est ? (est.mode === "auto" ? "Mode : moyenne depuis toujours · " : "Mode : valeur saisie · ") : "") + (avg[c] > 0 ? `Moyenne depuis toujours : ${eur0(avg[c])} / mois (sur ${n} mois)` : (n ? "Pas de dépense passée dans cette catégorie" : "Moyenne : disponible après un mois complet"));
     li.append(m);
     const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "8px";
-    if (est) row.append(btn("Modifier", () => { $("estCat").value = c; $("estAmt").value = est.amount; $("estAmt").focus(); window.scrollTo(0, 0); }, true));
-    if (avg[c] > 0) row.append(btn(est ? "Utiliser la moyenne" : "Estimer à la moyenne", () => setDoc(doc(db, "estimates", c), { category: c, amount: Math.round(avg[c]) }), !!est));
+    if (est) row.append(btn("Modifier", () => { $("estCat").value = c; $("estMode").value = est.mode === "auto" ? "auto" : "manual"; $("estAmt").value = estAmt(c); syncEstMode(); window.scrollTo(0, 0); }, true));
+    if (avg[c] > 0 && !(est && est.mode === "auto")) row.append(btn(est ? "Passer à la moyenne" : "Estimer à la moyenne", () => setDoc(doc(db, "estimates", c), { category: c, mode: "auto", amount: Math.round(avg[c]) }), !!est));
     if (est) row.append(btn("Supprimer", () => confirm("Supprimer l'estimation « " + c + " » ?") && deleteDoc(doc(db, "estimates", c)), true));
     if (row.children.length) li.append(row);
     $("estList").append(li);
   });
 }
 
+function syncEstMode() { $("estAmt").hidden = $("estMode").value === "auto"; }
+$("estMode").onchange = syncEstMode;
 $("btnEst").onclick = async () => {
-  const amount = parseFloat($("estAmt").value), c = $("estCat").value;
-  if (!(amount >= 0) || $("estAmt").value === "") return;
-  await setDoc(doc(db, "estimates", c), { category: c, amount });
+  const c = $("estCat").value;
+  if ($("estMode").value === "auto") await setDoc(doc(db, "estimates", c), { category: c, mode: "auto", amount: Math.round(avgC.avg[c] || 0) });
+  else {
+    const amount = parseFloat($("estAmt").value);
+    if (!(amount >= 0) || $("estAmt").value === "") return;
+    await setDoc(doc(db, "estimates", c), { category: c, mode: "manual", amount });
+  }
   $("estAmt").value = "";
 };
 
@@ -831,7 +839,7 @@ function renderFuture() {
   const m = $("month").value, box = $("future");
   box.innerHTML = "";
   if (!m) return;
-  const estTot = Object.values(estimates).reduce((t, v) => t + v.amount, 0);
+  const estTot = Object.keys(estimates).reduce((t, c) => t + estAmt(c), 0);
   for (let k = 1; k <= 3; k++) {
     const x = nmo(m, k);
     const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
@@ -853,7 +861,7 @@ function projRem(x) {
   const av = real > 0 ? null : salAvg(x);
   const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
   if (!(sal > 0)) return null;
-  const estTot = Object.values(estimates).reduce((t, v) => t + v.amount, 0);
+  const estTot = Object.keys(estimates).reduce((t, c) => t + estAmt(c), 0);
   return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot);
 }
 function giftPlan() {

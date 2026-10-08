@@ -49,6 +49,10 @@ nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 #list li.acc-Marie{background:var(--rose);border-left-color:var(--rose-b)}
 #list li.acc-Julien{background:var(--bleu);border-left-color:var(--bleu-b)}
 #list li.acc-Commun{background:var(--blanc);border-left-color:var(--blanc-b)}
+#waitList li{padding:10px;margin-top:6px;border-top:0;border-left:4px solid transparent;border-radius:8px}
+#waitList li.acc-Marie{background:var(--rose);border-left-color:var(--rose-b)}
+#waitList li.acc-Julien{background:var(--bleu);border-left-color:var(--bleu-b)}
+#waitList li.acc-Commun{background:var(--blanc);border-left-color:var(--blanc-b)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 8px;font-size:.85rem;color:var(--mute)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border-left:4px solid}
 .fut{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;min-width:0}
@@ -127,6 +131,22 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <input id="date" type="date">
       <button id="btnAdd">Ajouter</button>
     </div>
+  </section>
+
+  <section>
+    <h2>⏳ En attente</h2>
+    <p class="mute">Paiements à ne pas oublier et revenus prévus. Cette liste n'est pas comptée dans le budget.</p>
+    <div class="row">
+      <select id="wType" aria-label="Type"><option value="pay">Paiement à faire</option><option value="in">Revenu attendu</option></select>
+      <input id="wLabel" placeholder="Libellé (ex. facture dentiste)">
+      <input id="wAmount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+      <select id="wAccount" aria-label="Compte"><option>Julien</option><option>Marie</option><option selected>Commun</option></select>
+      <input id="wDate" type="date" aria-label="Date prévue (facultatif)">
+      <button id="btnWait">Ajouter</button>
+      <button class="ghost" id="btnWaitCancel" hidden>Annuler</button>
+    </div>
+    <div id="waitTotal" class="mute" style="margin-top:10px"></div>
+    <ul id="waitList"></ul>
   </section>
 
   <section>
@@ -329,7 +349,7 @@ const $ = id => document.getElementById(id);
 const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const today = new Date().toISOString().slice(0, 10);
 
-let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], gifts = [], gEditId = null, curLeft = { m: "", v: null }, estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], gifts = [], gEditId = null, waits = [], wEditId = null, curLeft = { m: "", v: null }, estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
 $("month").value = today.slice(0, 7);
 $("fstart").value = today.slice(0, 7);
 $("date").value = today;
@@ -381,6 +401,10 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   splitDirty = false; fillSplit();
+  unsubs.push(snap(collection(db, "pending"), s => {
+    waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderWait();
+  }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGifts();
@@ -878,6 +902,45 @@ function giftWhen(g, gp) {
   const k = gp.when[g.id];
   return k < 0 ? "Pas avant plus de 2 ans" : k === 0 ? "Possible dès ce mois-ci" : "Possible dès " + monthLabel(nmo(gp.cur, k));
 }
+
+function renderWait() {
+  const ul = $("waitList"); ul.innerHTML = "";
+  const open = waits.filter(w => !w.done), sum = t => open.filter(w => w.type === t).reduce((a, w) => a + (w.amount || 0), 0);
+  $("waitTotal").textContent = waits.length ? `À payer : ${eur(sum("pay"))} · À recevoir : ${eur(sum("in"))}` : "Rien en attente pour l'instant.";
+  waits.slice().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.due || "9999").localeCompare(b.due || "9999") || (a.label || "").localeCompare(b.label || "")).forEach(w => {
+    const li = document.createElement("li"), lb = document.createElement("label"), isIn = w.type === "in";
+    if (w.account) li.className = "acc-" + w.account;
+    lb.style.cssText = "display:flex;gap:8px;align-items:center;flex:1;min-width:0;cursor:pointer";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!w.done; cb.style.width = "auto";
+    cb.setAttribute("aria-label", (isIn ? "Reçu : " : "Payé : ") + w.label);
+    cb.onchange = () => updateDoc(doc(db, "pending", w.id), { done: cb.checked });
+    const box = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
+    t.textContent = w.label; m.className = "mute"; m.style.fontSize = ".8rem";
+    const late = !w.done && w.due && w.due < today;
+    m.textContent = (isIn ? "Revenu attendu" : "Paiement à faire") + (w.account ? " · " + w.account : "") + (w.due ? " · " + new Date(w.due).toLocaleDateString("fr-FR") : "") + (late ? " · en retard" : "") + (w.done ? (isIn ? " · reçu" : " · payé") : "");
+    if (late) m.style.color = "var(--bad)";
+    if (w.done) t.style.cssText = "text-decoration:line-through;color:var(--mute)";
+    box.append(t, m); lb.append(cb, box);
+    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center";
+    const a = document.createElement("span"); a.className = "amt"; a.textContent = (isIn ? "+ " : "− ") + eur(w.amount || 0);
+    a.style.color = isIn ? "var(--ok)" : "var(--ink)";
+    const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + w.label);
+    ed.onclick = () => { wEditId = w.id; $("wType").value = w.type; $("wLabel").value = w.label; $("wAmount").value = w.amount; $("wAccount").value = w.account || "Commun"; $("wDate").value = w.due || ""; $("btnWait").textContent = "Enregistrer"; $("btnWaitCancel").hidden = false; $("wLabel").focus(); };
+    const del = document.createElement("button"); del.className = "ghost"; del.textContent = "✕"; del.setAttribute("aria-label", "Supprimer " + w.label);
+    del.onclick = () => confirm("Supprimer « " + w.label + " » ?") && deleteDoc(doc(db, "pending", w.id));
+    r.append(a, ed, del); li.append(lb, r); ul.append(li);
+  });
+}
+function resetWaitForm() { wEditId = null; $("wLabel").value = ""; $("wAmount").value = ""; $("wDate").value = ""; $("btnWait").textContent = "Ajouter"; $("btnWaitCancel").hidden = true; }
+$("btnWaitCancel").onclick = resetWaitForm;
+$("btnWait").onclick = async () => {
+  const label = $("wLabel").value.trim(), amount = parseFloat($("wAmount").value);
+  if (!label || !(amount > 0)) return;
+  const data = { type: $("wType").value, label, amount, account: $("wAccount").value, due: $("wDate").value };
+  if (wEditId) await updateDoc(doc(db, "pending", wEditId), data);
+  else await addDoc(collection(db, "pending"), { ...data, done: false, by: auth.currentUser.email, created: serverTimestamp() });
+  resetWaitForm();
+};
 
 const PEOPLE = ["Julien", "Marie", "Kélia", "Milio"];
 function renderGifts() {

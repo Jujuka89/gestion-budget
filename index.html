@@ -110,7 +110,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="mute">Il vous restera à la fin du mois sur vos deux salaires</div>
     <div class="big" id="left">0 €</div>
     <div class="bar"><i id="fill"></i></div>
-    <div id="acctBox" style="display:flex;gap:8px;margin:12px 0"></div>
+    <div id="acctBox" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
     <div class="mute" id="sum"></div>
   </section>
 
@@ -1047,7 +1047,9 @@ function acctRem(m) {
   else { const av = salAvg(m); if (!av) return null; a = { Julien: av.a[ix.j] || 0, Marie: av.a[ix.m] || 0 }; }
   const tot = a.Julien + a.Marie;
   if (!(tot > 0)) return null;
-  const common = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0) + foodBudgetFor(m) + planFor(m).total + pendCost(m, "Commun");
+  const isCom = x => x.account !== "Julien" && x.account !== "Marie";
+  const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+  const common = Math.max(0, fxC + foodBudgetFor(m) + planFor(m).total + pendCost(m, "Commun"));
   const out = {};
   ["Julien", "Marie"].forEach(p => {
     const c = common * a[p] / tot;
@@ -1055,19 +1057,22 @@ function acctRem(m) {
     const pe = expenses.filter(e => e.account === p).reduce((t, e) => t + e.amount, 0);
     out[p] = { c, left: a[p] - c - pf - pe - pendCost(m, p) };
   });
+  const expC = expenses.filter(isCom).reduce((t, e) => t + e.amount, 0);
+  const incC = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && isCom(w)).reduce((t, w) => t + (w.amount || 0), 0);
+  out.Commun = { c: common, left: common - fxC - expC + incC };
   return out;
 }
 function renderAcct(m) {
   const box = $("acctBox"); box.innerHTML = "";
   const r = acctRem(m); if (!r) return;
-  [["Julien", "bleu"], ["Marie", "rose"]].forEach(([p, col]) => {
+  [["Julien", "bleu"], ["Marie", "rose"], ["Commun", "blanc"]].forEach(([p, col]) => {
     const d = document.createElement("div");
-    d.style.cssText = `flex:1;min-width:0;border-radius:10px;padding:10px;background:var(--${col});border-left:4px solid var(--${col}-b)`;
+    d.style.cssText = `flex:1 1 30%;min-width:0;border-radius:10px;padding:10px;background:var(--${col});border:1px solid var(--line);border-left:4px solid var(--${col}-b)`;
     d.innerHTML = "<div class='mute'></div><b style='display:block;font-size:1.3rem;font-variant-numeric:tabular-nums'></b><div class='mute' style='font-size:.75rem'></div>";
     d.children[0].textContent = "Compte " + p;
     d.children[1].textContent = eur0(r[p].left);
     if (r[p].left < 0) d.children[1].style.color = "var(--bad)";
-    d.children[2].textContent = "après sa part du compte commun (" + eur0(r[p].c) + ")";
+    d.children[2].textContent = p === "Commun" ? "alimenté par vos 2 parts (" + eur0(r[p].c) + ")" : "après sa part du compte commun (" + eur0(r[p].c) + ")";
     box.append(d);
   });
 }

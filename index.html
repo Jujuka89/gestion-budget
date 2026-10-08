@@ -534,15 +534,15 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [[(av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires") + (incM > 0 ? ` + revenus fixes (${eur0(incM)})` : ""), sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Revenus attendus", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
-    if (i >= 3 && !(v > 0)) return;
+  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Revenus attendus", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+    if (![0, 1, 2, 3].includes(i) && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
-    if (t.startsWith("+")) d.children[1].style.color = "var(--ok)";
+    d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)";
     if (i) d.children[1].style.fontWeight = 400;
     $("sum").append(d);
-    if (i === 3) $("sum").append(miniGauge("Commandes Jow ce mois-ci", jow, jowPlan));
-    if (i === 5) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
+    if (i === 4) $("sum").append(miniGauge("Commandes Jow ce mois-ci", jow, jowPlan));
+    if (i === 6) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
   });
 
   curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m);

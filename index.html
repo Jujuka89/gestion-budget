@@ -109,18 +109,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="mute" id="sum"></div>
   </section>
 
-  <section>
-    <h2>🛒 Budget alimentaire (Jow)</h2>
-    <div class="mute">Il reste pour Jow</div>
-    <div class="big" id="foodLeft">0 €</div>
-    <div class="bar"><i id="foodFill"></i></div>
-    <div class="mute" id="foodSum"></div>
-    <div class="row" style="margin-top:14px">
-      <input id="foodAmt" type="number" step="0.01" min="0" placeholder="Montant de la commande Jow (€)">
-      <button id="btnFoodAdd">Ajouter une commande Jow</button>
-    </div>
-  </section>
-
 
   <section>
     <h2>Ajouter une dépense</h2>
@@ -411,7 +399,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "foodBudgets"), s => {
     foodB = {}; s.docs.forEach(d => foodB[d.id] = d.data().amount);
-    renderFood(); renderSplit();
+    renderSplit();
   }));
   unsubs.push(snap(collection(db, "salaries"), s => {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
@@ -440,7 +428,7 @@ $("btnAdd").onclick = async () => {
 };
 
 function render() {
-  renderFood(); renderPlan(); renderEst(); renderFuture();
+  renderPlan(); renderEst(); renderFuture();
   const m = $("month").value;
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
@@ -938,24 +926,6 @@ function foodBudgetFor(m) {
   const ks = Object.keys(foodB).filter(k => k < m).sort();
   return ks.length ? foodB[ks[ks.length - 1]] : 450;
 }
-
-function renderFood() {
-  const m = $("month").value, fb = foodBudgetFor(m);
-  const spent = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
-  const left = fb - spent, pct = fb > 0 ? Math.min(100, spent / fb * 100) : 0;
-  const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
-  $("foodLeft").textContent = eur0(left); $("foodLeft").style.color = col;
-  $("foodFill").style.width = pct + "%"; $("foodFill").style.background = col;
-  $("foodSum").textContent = `${eur0(spent)} dépensés sur ${eur0(fb)}`;
-}
-
-$("btnFoodAdd").onclick = async () => {
-  const amount = parseFloat($("foodAmt").value);
-  if (!(amount > 0)) return;
-  const m = $("month").value, date = m === today.slice(0, 7) ? today : m + "-01";
-  await addDoc(collection(db, "expenses"), { label: "Jow", amount, date, category: "Jow", account: "Commun", month: m, by: auth.currentUser.email, created: serverTimestamp() });
-  $("foodAmt").value = "";
-};
 
 function salAvg(m) {
   const ks = Object.keys(salaries).filter(k => k < m && salaries[k].p && salaries[k].p.some(x => x.a > 0)).sort().slice(-12);

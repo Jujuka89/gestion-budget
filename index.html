@@ -57,6 +57,15 @@ nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border-left:4px solid}
 .fut{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;min-width:0}
 .fut b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
+@media(min-width:1000px){
+  main{max-width:1400px}
+  #login{max-width:520px;margin-left:auto;margin-right:auto}
+  #app > div[id^="tab"]:not(#tabMonth){max-width:720px;margin-left:auto;margin-right:auto}
+  #monthGrid{display:grid;grid-template-columns:1fr 1.35fr 1fr;gap:20px;align-items:start}
+  #colL{grid-column:1;grid-row:1}
+  #colM{grid-column:2;grid-row:1}
+  #colR{grid-column:3;grid-row:1}
+}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -99,6 +108,8 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </nav>
 
   <div id="tabMonth">
+  <div id="monthGrid">
+    <div id="colM">
   <section id="sNotice" hidden>
     <div>⚠️ Les salaires de ce mois ne sont pas encore saisis : la répartition du compte commun ne peut pas être calculée.</div>
     <div class="row" style="margin-top:10px"><button id="btnGoSplit">Saisir les salaires</button></div>
@@ -114,6 +125,8 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </section>
 
 
+    </div>
+    <div id="colL">
   <section>
     <h2>Ajouter une dépense</h2>
     <div class="row">
@@ -154,6 +167,9 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div id="cats" class="mute">Aucune dépense ce mois-ci.</div>
   </section>
 
+  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button></div>
+    </div>
+    <div id="colR">
   <section>
     <h2>Transactions du mois</h2>
     <div class="legend">
@@ -164,7 +180,8 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <ul id="list"></ul>
     <p id="empty" class="mute">Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.</p>
   </section>
-  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button></div>
+    </div>
+  </div>
   </div>
 
   <div id="tabFixed" hidden>

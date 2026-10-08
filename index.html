@@ -120,6 +120,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="mute">Il vous restera à la fin du mois sur vos deux salaires</div>
     <div class="big" id="left">0 €</div>
     <div class="bar"><i id="fill"></i></div>
+    <div id="yearBox" style="margin:12px 0 0;padding:10px;border:1px dashed var(--line);border-radius:8px" hidden>
+      <div class="cat" style="padding:0"><span class="mute" id="yearLab"></span><b id="yearVal" style="font-size:1.3rem;font-variant-numeric:tabular-nums"></b></div>
+      <div class="mute" style="font-size:.75rem">Estimation : on additionne ce qu'il restera chaque mois jusqu'en décembre (salaires, dépenses fixes, Jow, dépenses prévues et estimées).</div>
+    </div>
     <div id="acctBox" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
     <div class="mute" id="sum"></div>
   </section>
@@ -566,7 +570,7 @@ function render() {
     if (i === 6) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
   });
 
-  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); if (acctName) renderAcctPage();
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m, sal > 0 ? left : null); if (acctName) renderAcctPage();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
@@ -1426,6 +1430,20 @@ function renderAcctPage() {
     a.style.cssText = "font-weight:700;color:" + (k === "e" ? "var(--bad)" : "var(--ok)");
     li.append(l, a); $("acList").append(li);
   });
+}
+
+function renderYear(m, left) {
+  const box = $("yearBox");
+  if (left === null || m < today.slice(0, 7)) { box.hidden = true; return; }
+  const yr = m.slice(0, 4); let tot = left, ok = true;
+  for (let k = 1; k <= 12; k++) {
+    const x = nmo(m, k); if (x.slice(0, 4) !== yr) break;
+    const r = projRem(x); if (r === null) { ok = false; break; } tot += r;
+  }
+  box.hidden = false;
+  $("yearLab").textContent = "À la fin de l'année (décembre " + yr + ")";
+  $("yearVal").textContent = ok ? eur0(tot) : "—";
+  $("yearVal").style.color = ok && tot < 0 ? "var(--bad)" : "var(--ok)";
 }
 
 function foodBudgetFor(m) {

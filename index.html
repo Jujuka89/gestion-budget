@@ -374,6 +374,9 @@ function accessError(e) {
   }
 }
 
+const addedAt = x => (x.created && x.created.toMillis) ? x.created.toMillis() : Number.MAX_SAFE_INTEGER;
+const byRecent = (a, b) => (b.date || "").localeCompare(a.date || "") || (addedAt(b) === addedAt(a) ? 0 : addedAt(b) > addedAt(a) ? 1 : -1);
+
 function listen() {
   const m = $("month").value;
   if (!m) return;
@@ -411,7 +414,7 @@ function listen() {
     render(); renderSplit();
   }));
   unsubs.push(snap(query(collection(db, "expenses"), where("month", "==", m)), s => {
-    expenses = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.date.localeCompare(a.date));
+    expenses = s.docs.map(d => ({ id: d.id, ...d.data() })).sort(byRecent);
     render();
   }, () => { $("empty").textContent = "Accès refusé : ce compte n'est pas autorisé."; }));
 }

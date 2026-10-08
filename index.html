@@ -154,6 +154,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <label class="mute" style="display:flex;gap:6px;align-items:center;flex:1 1 100%"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
       <button id="btnAdd">Ajouter</button>
       <button class="ghost" id="btnAddCancel" hidden>Annuler</button>
+      <button class="ghost" id="btnAddDel" hidden style="color:var(--bad)">Supprimer</button>
     </div>
     <div id="tHint" class="mute" style="margin-top:8px;font-size:.85rem"></div>
   </section>
@@ -1190,9 +1191,11 @@ function renderWait() {
       ed.onclick = () => startWaitEdit(w);
       r.append(ok, ed);
     }
-    const del = document.createElement("button"); del.className = "ghost"; del.textContent = "✕"; del.setAttribute("aria-label", "Supprimer " + w.label);
-    del.onclick = () => confirm("Supprimer « " + w.label + " » ?" + (w.done && !isIn ? " La dépense déjà validée reste dans les dépenses du mois." : "")) && deleteDoc(doc(db, "pending", w.id));
-    r.append(del); li.append(box, r); ul.append(li);
+    if (w.done) {
+      const ed2 = document.createElement("button"); ed2.className = "ghost"; ed2.textContent = "✎"; ed2.setAttribute("aria-label", "Modifier " + w.label);
+      ed2.onclick = () => startWaitEdit(w); r.append(ed2);
+    }
+    li.append(box, r); ul.append(li);
   });
   if (arr.length > 5) {
     const li = document.createElement("li"), b = document.createElement("button");
@@ -1223,7 +1226,7 @@ function resetAddForm() {
   wEditId = null;
   $("label").value = ""; $("amount").value = ""; $("date").value = today;
   $("tpend").checked = false; $("tpend").disabled = false;
-  $("btnAdd").textContent = "Ajouter"; $("btnAddCancel").hidden = true;
+  $("btnAdd").textContent = "Ajouter"; $("btnAddCancel").hidden = true; $("btnAddDel").hidden = true;
   $("refAmt").value = ""; $("refDate").value = "";
   syncT();
 }
@@ -1234,10 +1237,16 @@ function startWaitEdit(w) {
   $("category").value = w.cat || "Autre"; $("account").value = w.account || "Commun"; $("date").value = w.due || "";
   $("refAmt").value = w.refund || ""; $("refDate").value = w.refundDue || "";
   $("tpend").checked = true; $("tpend").disabled = true;
-  $("btnAdd").textContent = "Enregistrer"; $("btnAddCancel").hidden = false;
-  syncT(); $("label").scrollIntoView({ behavior: "smooth", block: "center" }); $("label").focus();
+  $("btnAdd").textContent = "Enregistrer"; $("btnAddCancel").hidden = false; $("btnAddDel").hidden = false;
+  syncT(); if (w.done) $("tHint").textContent = "Élément déjà validé : la modification ne change pas la dépense déjà enregistrée.";
+  $("label").scrollIntoView({ behavior: "smooth", block: "center" }); $("label").focus();
 }
 $("btnAddCancel").onclick = resetAddForm;
+$("btnAddDel").onclick = async () => {
+  const w = waits.find(x => x.id === wEditId); if (!w) return;
+  if (!confirm("Supprimer « " + w.label + " » ?" + (w.done && w.type === "pay" ? " La dépense déjà validée reste dans les dépenses du mois." : ""))) return;
+  await deleteDoc(doc(db, "pending", w.id)); resetAddForm();
+};
 
 $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;

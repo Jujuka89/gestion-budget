@@ -93,7 +93,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
 
   <nav>
     <button class="on" data-t="month">Mois en cours</button>
-    <button data-t="fixed">Dépenses fixes</button>
     <button data-t="planned">Dépenses prévues</button>
     <button data-t="estimated">Dépenses estimées</button>
     <button data-t="split">Répartition</button>
@@ -165,6 +164,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <ul id="list"></ul>
     <p id="empty" class="mute">Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.</p>
   </section>
+  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button></div>
   </div>
 
   <div id="tabFixed" hidden>
@@ -198,6 +198,39 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <h2>Vos dépenses fixes</h2>
       <ul id="fixedList"></ul>
       <p id="fixedEmpty" class="mute">Aucune dépense fixe. Ajoutez votre loyer ou vos abonnements ci-dessus.</p>
+    </section>
+  </div>
+
+  <div id="tabInc" hidden>
+    <section>
+      <div class="mute">Total des revenus fixes par mois</div>
+      <div class="big" id="incTotal" style="color:var(--ok)">0 €</div>
+      <div class="mute" id="incYear"></div>
+      <p class="mute">Ces revenus sont ajoutés automatiquement au budget de chaque mois, à partir du mois de départ choisi. Cliquez sur un revenu pour voir son détail.</p>
+    </section>
+    <section>
+      <h2 id="itTitle">Ajouter un revenu fixe</h2>
+      <div class="row">
+        <input id="ilabel" placeholder="Libellé (ex. allocations, pension)">
+        <input id="iamount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+        <select id="icategory">
+          <option>Allocations</option><option>Pension</option><option>Revenus locatifs</option><option>Prime / Salaire annexe</option><option>Autre</option>
+        </select>
+        <select id="iaccount" aria-label="Compte de prélèvement">
+          <option value="Julien">Versé sur Julien</option><option value="Marie">Versé sur Marie</option><option value="Commun" selected>Versé sur Commun</option>
+        </select>
+        <input id="iday" type="number" min="1" max="31" placeholder="Jour du mois" aria-label="Jour du versement">
+        <input id="istart" type="month" aria-label="À partir du mois">
+        <input id="ichange" type="month" aria-label="Nouveau montant à partir du mois" hidden>
+        <button id="btnInc">Ajouter</button>
+        <button class="ghost" id="btnIncCancel" hidden>Annuler</button>
+      </div>
+      <p class="mute" id="ihint" hidden>Si vous changez le montant, il s'applique à partir du mois choisi dans le dernier champ ; les mois précédents gardent l'ancien prix.</p>
+    </section>
+    <section>
+      <h2>Vos revenus fixes</h2>
+      <ul id="incList"></ul>
+      <p id="incEmpty" class="mute">Aucun revenu fixe. Ajoutez vos allocations ou une pension ci-dessus.</p>
     </section>
   </div>
 
@@ -324,6 +357,25 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <ul id="dHist"></ul>
     </section>
   </div>
+  <div id="tabIncDetail" hidden>
+    <section>
+      <button class="ghost" id="btnIncBack">Retour aux revenus fixes</button>
+      <h2 id="idTitle" style="margin:16px 0 4px"></h2>
+      <div class="mute">Montant actuel par mois</div>
+      <div class="big" id="idAmount" style="color:var(--ok)"></div>
+      <ul id="idInfo" style="margin:12px 0"></ul>
+      <div class="row"><button id="btnIncEdit">Modifier</button><button class="ghost" id="btnIncDel">Supprimer</button></div>
+    </section>
+    <section>
+      <h2>Évolution du montant par mois</h2>
+      <div id="incChart"></div>
+      <p class="mute" id="incChartNote" hidden>Un seul mois pour l'instant : la courbe se dessinera dès le mois prochain.</p>
+    </section>
+    <section id="idHistBox" hidden>
+      <h2>Changements de montant</h2>
+      <ul id="idHist"></ul>
+    </section>
+  </div>
 </div>
 
 </main>
@@ -434,6 +486,10 @@ function listen() {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
     fillSplit(); renderSplit(); render();
   }));
+  unsubs.push(snap(collection(db, "recurringIncome"), s => {
+    incomes = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render(); renderSplit();
+  }));
   unsubs.push(snap(collection(db, "recurring"), s => {
     fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé" })[o.category] || o.category; return o; });
     render(); renderSplit();
@@ -464,7 +520,8 @@ function render() {
   const spent = expenses.reduce((t, e) => t + e.amount, 0) + fixedTotal;
   const real = ((salaries[m] && salaries[m].p) || []).reduce((t, x) => t + (x.a || 0), 0);
   const av = real > 0 ? null : salAvg(m);
-  const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
+  const incM = incFixed(m);
+  const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incM;
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
   const jow = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
   const pl = planFor(m), es = estFor(), pd = pendSum(m, "all");
@@ -477,7 +534,7 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Revenus attendus", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [[(av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires") + (incM > 0 ? ` + revenus fixes (${eur0(incM)})` : ""), sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Revenus attendus", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (i >= 3 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
@@ -523,7 +580,7 @@ function render() {
     b.onclick = () => confirm(k === "e" ? "Supprimer cette dépense ?" : "Supprimer ce revenu ?") && deleteDoc(doc(db, k === "e" ? "expenses" : "pending", x.id));
     r.append(b); li.append(l, r); $("list").append(li);
   });
-  renderFixed();
+  renderFixed(); renderInc();
 }
 
 function prices(f) { return (f.prices && f.prices.length ? f.prices : [{ from: f.start || "0000-00", amount: f.amount }]).slice().sort((a, b) => a.from.localeCompare(b.from)); }
@@ -536,7 +593,8 @@ function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y,
 function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
 
 let editId = null, curId = null;
-function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+let incomes = [], incEditId = null, incCurId = null;
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -675,6 +733,127 @@ $("btnFixed").onclick = async () => {
     resetFixedForm();
   }
 };
+
+function renderInc() {
+  const items = incomes.map(f => ({ f, p: curPrice(f) }));
+  const total = items.reduce((t, x) => t + (priceAt(x.f, today.slice(0, 7)) || 0), 0);
+  $("incTotal").textContent = eur0(total) + " / mois";
+  $("incYear").textContent = eur0(total * 12) + " / an";
+  $("incEmpty").hidden = incomes.length > 0;
+  $("incList").innerHTML = "";
+  const groups = {};
+  items.forEach(x => (groups[x.f.category || "Autre"] ||= []).push(x));
+  Object.entries(groups)
+    .map(([c, l]) => ({ c, l: l.sort((a, b) => b.p - a.p), t: l.reduce((s, x) => s + x.p, 0) }))
+    .sort((a, b) => b.t - a.t)
+    .forEach(g => {
+      const h = document.createElement("li");
+      h.className = "cathead";
+      h.innerHTML = "<span></span><small></small>";
+      h.children[0].textContent = g.c;
+      h.children[1].textContent = `${eur(g.t)}/mois · ${eur(g.t * 12)}/an`;
+      $("incList").append(h);
+      g.l.forEach(({ f, p }) => {
+        const li = document.createElement("li"), b = document.createElement("button");
+        b.className = "rowbtn";
+        b.innerHTML = "<span class='nm'></span><span class='amt'><b></b><small></small></span>";
+        b.children[0].textContent = f.label;
+        b.querySelector("b").textContent = eur(p) + " / mois"; b.querySelector("b").style.color = "var(--ok)";
+        b.querySelector("small").textContent = eur(p * 12) + " / an";
+        b.onclick = () => openIncDetail(f.id);
+        li.append(b); $("incList").append(li);
+      });
+    });
+  if (incCurId) renderIncDetail();
+}
+
+function openIncDetail(id) { incCurId = id; show("tabIncDetail"); renderIncDetail(); }
+
+function renderIncDetail() {
+  const f = incomes.find(x => x.id === incCurId);
+  if (!f) { incCurId = null; if (!$("tabIncDetail").hidden) show("tabInc"); return; }
+  const ps = prices(f), now = today.slice(0, 7), start = ps[0].from, n = diffM(start, now);
+  $("idTitle").textContent = f.label;
+  $("idAmount").textContent = eur(curPrice(f));
+  const info = [["Catégorie", f.category], ["Compte", f.account ? "Versé sur " + f.account : "Non précisé"], ["Versement", `le ${f.day || "?"} de chaque mois`],
+    ["Depuis", n < 0 ? `${fmtM(start)} (à venir)` : n === 0 ? `${fmtM(start)} (ce mois-ci)` : `${fmtM(start)} (${dur(n)})`]];
+  $("idInfo").innerHTML = "";
+  info.forEach(([k, v]) => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span class='mute'></span><span></span>";
+    li.children[0].textContent = k; li.children[1].textContent = v; $("idInfo").append(li);
+  });
+  const from = n > 23 ? addM(now, -23) : start, last = n < 0 ? start : now, pts = [];
+  for (let m = from; m <= last; m = addM(m, 1)) pts.push({ m, v: priceAt(f, m) ?? ps[0].amount });
+  $("incChart").innerHTML = chartSvg(pts);
+  $("incChartNote").hidden = pts.length > 1;
+  $("idHistBox").hidden = ps.length < 2;
+  $("idHist").innerHTML = "";
+  ps.slice().reverse().forEach(x => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span></span><span class='amt'></span>";
+    li.children[0].textContent = "Depuis " + fmtM(x.from); li.children[1].textContent = eur(x.amount);
+    $("idHist").append(li);
+  });
+}
+
+function resetIncForm() {
+  $("iaccount").value = "Commun";
+  incEditId = null;
+  ["ilabel", "iamount", "iday"].forEach(i => $(i).value = "");
+  $("istart").value = today.slice(0, 7); $("istart").hidden = false;
+  $("ichange").hidden = true; $("ihint").hidden = true;
+  $("btnInc").textContent = "Ajouter"; $("itTitle").textContent = "Ajouter un revenu fixe"; $("btnIncCancel").hidden = true;
+}
+
+function startIncEdit(f) {
+  incEditId = f.id;
+  $("ilabel").value = f.label; $("iamount").value = curPrice(f);
+  $("icategory").value = f.category; $("iaccount").value = f.account || "Commun"; $("iday").value = f.day || "";
+  $("istart").hidden = true; $("ichange").hidden = false; $("ichange").value = today.slice(0, 7); $("ihint").hidden = false;
+  $("btnInc").textContent = "Enregistrer"; $("itTitle").textContent = "Modifier le revenu fixe"; $("btnIncCancel").hidden = false;
+  show("tabInc"); $("ilabel").focus();
+}
+
+$("btnIncCancel").onclick = () => { const b = incEditId; resetIncForm(); if (b) openIncDetail(b); };
+$("btnIncEdit").onclick = () => { const f = incomes.find(x => x.id === incCurId); if (f) startIncEdit(f); };
+$("btnIncBack").onclick = () => { incCurId = null; show("tabInc"); };
+$("btnIncDel").onclick = async () => {
+  const f = incomes.find(x => x.id === incCurId);
+  if (f && confirm(`Supprimer « ${f.label} » ? Il ne sera plus ajouté aux mois, passés comme futurs.`)) {
+    await deleteDoc(doc(db, "recurringIncome", f.id)); incCurId = null; show("tabInc");
+  }
+};
+
+$("btnInc").onclick = async () => {
+  const label = $("ilabel").value.trim(), amount = parseFloat($("iamount").value), cat = $("icategory").value, acc = $("iaccount").value;
+  const day = Math.min(31, Math.max(1, parseInt($("iday").value) || 1));
+  if (!label || !(amount > 0)) return;
+  if (incEditId) {
+    const f = incomes.find(x => x.id === incEditId);
+    let ps = prices(f);
+    if (amount !== curPrice(f)) {
+      const from = $("ichange").value || today.slice(0, 7);
+      ps = ps.filter(x => x.from !== from).concat({ from, amount }).sort((a, b) => a.from.localeCompare(b.from));
+    }
+    await updateDoc(doc(db, "recurringIncome", incEditId), { label, category: cat, account: acc, day, prices: ps, start: ps[0].from, amount: ps[ps.length - 1].amount });
+    const id = incEditId; resetIncForm(); openIncDetail(id);
+  } else {
+    const start = $("istart").value;
+    if (!start) return;
+    await addDoc(collection(db, "recurringIncome"), {
+      label, amount, day, start, category: cat, account: acc, prices: [{ from: start, amount }],
+      by: auth.currentUser.email, created: serverTimestamp()
+    });
+    resetIncForm();
+  }
+};
+
+const incFixed = m => incomes.reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+const incAcct = (acc, m) => incomes.filter(f => acc === "Commun" ? (f.account !== "Julien" && f.account !== "Marie") : f.account === acc).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+const goTab = id => { document.querySelectorAll("nav button").forEach(x => x.classList.remove("on")); show(id); };
+$("goFixed").onclick = () => goTab("tabFixed");
+$("goInc").onclick = () => goTab("tabInc");
 
 const planBuysOf = id => planBuys.filter(x => x.planId === id);
 const planSpent = p => planBuysOf(p.id).reduce((t, x) => t + x.amount, 0);
@@ -873,7 +1052,7 @@ function renderFuture() {
     const x = nmo(m, k);
     const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
     const av = real > 0 ? null : salAvg(x);
-    const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
+    const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
     const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot + pendCost(x);
     const d = document.createElement("div"); d.className = "fut";
     d.innerHTML = "<div class='mute'></div><b></b><div class='mute' style='font-size:.75rem'></div>";
@@ -888,7 +1067,7 @@ function renderFuture() {
 function projRem(x) {
   const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
   const av = real > 0 ? null : salAvg(x);
-  const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
+  const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
   if (!(sal > 0)) return null;
   const estTot = Object.keys(estimates).reduce((t, c) => t + estAmt(c), 0);
   return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot + pendCost(x));
@@ -1049,17 +1228,17 @@ function acctRem(m) {
   if (!(tot > 0)) return null;
   const isCom = x => x.account !== "Julien" && x.account !== "Marie";
   const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const common = Math.max(0, fxC + foodBudgetFor(m) + planFor(m).total + pendCost(m, "Commun"));
+  const common = Math.max(0, fxC + foodBudgetFor(m) + planFor(m).total + pendCost(m, "Commun") - incAcct("Commun", m));
   const out = {};
   ["Julien", "Marie"].forEach(p => {
     const c = common * a[p] / tot;
     const pf = fixed.filter(f => f.account === p).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
     const pe = expenses.filter(e => e.account === p).reduce((t, e) => t + e.amount, 0);
-    out[p] = { c, left: a[p] - c - pf - pe - pendCost(m, p) };
+    out[p] = { c, left: a[p] - c - pf - pe - pendCost(m, p) + incAcct(p, m) };
   });
   const expC = expenses.filter(isCom).reduce((t, e) => t + e.amount, 0);
   const incC = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && isCom(w)).reduce((t, w) => t + (w.amount || 0), 0);
-  out.Commun = { c: common, left: common - fxC - expC + incC };
+  out.Commun = { c: common, left: common + incAcct("Commun", m) - fxC - expC + incC };
   return out;
 }
 function renderAcct(m) {
@@ -1112,7 +1291,7 @@ function renderSplit() {
   $("s1a").placeholder = avg && avg.a[0] ? `Moyenne ${eur0(avg.a[0])} · saisir le salaire exact (€)` : "Salaire net (€)";
   $("s2a").placeholder = avg && avg.a[1] ? `Moyenne ${eur0(avg.a[1])} · saisir le salaire exact (€)` : "Salaire net (€)";
   const fx = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const food = foodBudgetFor(m), pln = planFor(m).total, pc = pendCost(m, "Commun"), need = Math.max(0, fx + food + pln + pc);
+  const food = foodBudgetFor(m), pln = planFor(m).total, pc = pendCost(m, "Commun"), incCm = incAcct("Commun", m), need = Math.max(0, fx + food + pln + pc - incCm);
   let a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0], estNote = "";
   if (!(a[0] + a[1] > 0) && avg) { a = avg.a; estNote = `Estimation basée sur la moyenne des salaires de ${avg.n} mois précédent(s). Saisissez les salaires exacts pour valider.`; }
   const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
@@ -1122,6 +1301,7 @@ function renderSplit() {
   $("sNeed").append(row("Budget alimentaire", eur(food)));
   if (pln) $("sNeed").append(row("Dépenses prévues", eur(pln)));
   if (pc) $("sNeed").append(row("Paiements en attente (compte commun)", eur(pc)));
+  if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];
@@ -1151,7 +1331,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   if (editId) resetFixedForm();
   closePlan(); if (planEditId) resetPlanForm();
-  curId = null; show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", estimated: "tabEstimated", split: "tabSplit" }[b.dataset.t]);
+  curId = null; incCurId = null; if (incEditId) resetIncForm(); show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", estimated: "tabEstimated", split: "tabSplit" }[b.dataset.t]);
 });
 </script>
 </body>

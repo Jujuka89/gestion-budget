@@ -128,9 +128,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     </div>
     <div id="colL">
   <section>
-    <h2>Ajouter une dépense</h2>
+    <h2>Ajouter une transaction</h2>
     <div class="row">
-      <input id="label" placeholder="Libellé (ex. courses)">
+      <select id="ttype" aria-label="Type"><option value="exp">Dépense</option><option value="cred">Crédit</option></select>
+      <input id="label" placeholder="Libellé (ex. courses, médecin)">
       <input id="amount" type="number" step="0.01" min="0" placeholder="Montant (€)">
       <select id="category">
         <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
@@ -140,24 +141,17 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <select id="account" aria-label="Compte">
         <option>Julien</option><option>Marie</option><option selected>Commun</option>
       </select>
-      <input id="date" type="date">
+      <input id="date" type="date" aria-label="Date">
+      <label class="mute" style="display:flex;gap:6px;align-items:center;flex:1 1 100%"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
       <button id="btnAdd">Ajouter</button>
+      <button class="ghost" id="btnAddCancel" hidden>Annuler</button>
     </div>
+    <div id="tHint" class="mute" style="margin-top:8px;font-size:.85rem"></div>
   </section>
 
   <section>
     <h2>⏳ En attente</h2>
-    <p class="mute">Paiements à venir (chèque, prélèvement…) et revenus prévus. Ils sont pris en compte dans le budget du mois prévu (ou du mois en cours sans date). Cliquez sur « Valider » quand le paiement est débité ou le revenu reçu : un paiement devient alors une vraie dépense.</p>
-    <div class="row">
-      <select id="wType" aria-label="Type"><option value="pay">Paiement à faire</option><option value="in">Revenu attendu</option></select>
-      <input id="wLabel" placeholder="Libellé (ex. chèque dentiste)">
-      <select id="wCat" aria-label="Catégorie"></select>
-      <input id="wAmount" type="number" step="0.01" min="0" placeholder="Montant (€)">
-      <select id="wAccount" aria-label="Compte"><option>Julien</option><option>Marie</option><option selected>Commun</option></select>
-      <input id="wDate" type="date" aria-label="Date prévue (facultatif)">
-      <button id="btnWait">Ajouter</button>
-      <button class="ghost" id="btnWaitCancel" hidden>Annuler</button>
-    </div>
+    <p class="mute">Les transactions cochées « En attente » à la saisie. Elles sont prises en compte dans le budget du mois prévu (ou du mois en cours sans date). Cliquez sur « Valider » quand le paiement est débité ou le crédit reçu : un paiement devient alors une vraie dépense.</p>
     <div id="waitTotal" class="mute" style="margin-top:10px"></div>
     <ul id="waitList"></ul>
   </section>
@@ -519,17 +513,6 @@ function listen() {
 }
 
 
-$("btnAdd").onclick = async () => {
-  const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;
-  if (!label || !(amount > 0) || !date) return;
-  await addDoc(collection(db, "expenses"), {
-    label, amount, date, category: $("category").value, account: $("account").value,
-    month: date.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp()
-  });
-  $("label").value = ""; $("amount").value = "";
-  if (date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
-};
-
 function render() {
   renderPlan(); renderEst(); renderFuture();
   const m = $("month").value;
@@ -552,7 +535,7 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Revenus attendus", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Crédits et revenus ponctuels", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (![0, 1, 2, 3].includes(i) && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
@@ -1142,9 +1125,6 @@ function pendSum(m, who) {
 }
 const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; };
 
-$("wCat").innerHTML = $("category").innerHTML; $("wCat").value = "Autre";
-const syncWType = () => { $("wCat").hidden = $("wType").value === "in"; };
-$("wType").onchange = syncWType;
 
 async function validateWait(w) {
   if (w.type === "pay") {
@@ -1176,7 +1156,7 @@ function renderWait() {
       const ok = document.createElement("button"); ok.textContent = "✓ Valider"; ok.setAttribute("aria-label", "Valider " + w.label);
       ok.onclick = () => validateWait(w);
       const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + w.label);
-      ed.onclick = () => { wEditId = w.id; $("wType").value = w.type; syncWType(); $("wLabel").value = w.label; $("wAmount").value = w.amount; $("wCat").value = w.cat || "Autre"; $("wAccount").value = w.account || "Commun"; $("wDate").value = w.due || ""; $("btnWait").textContent = "Enregistrer"; $("btnWaitCancel").hidden = false; $("wLabel").focus(); };
+      ed.onclick = () => startWaitEdit(w);
       r.append(ok, ed);
     }
     const del = document.createElement("button"); del.className = "ghost"; del.textContent = "✕"; del.setAttribute("aria-label", "Supprimer " + w.label);
@@ -1184,16 +1164,52 @@ function renderWait() {
     r.append(del); li.append(box, r); ul.append(li);
   });
 }
-function resetWaitForm() { wEditId = null; $("wLabel").value = ""; $("wAmount").value = ""; $("wDate").value = ""; $("btnWait").textContent = "Ajouter"; $("btnWaitCancel").hidden = true; }
-$("btnWaitCancel").onclick = resetWaitForm;
-$("btnWait").onclick = async () => {
-  const label = $("wLabel").value.trim(), amount = parseFloat($("wAmount").value);
-  if (!label || !(amount > 0)) return;
-  const data = { type: $("wType").value, label, amount, account: $("wAccount").value, due: $("wDate").value, cat: $("wType").value === "pay" ? $("wCat").value : "" };
-  if (wEditId) await updateDoc(doc(db, "pending", wEditId), data);
-  else await addDoc(collection(db, "pending"), { ...data, done: false, by: auth.currentUser.email, created: serverTimestamp() });
-  resetWaitForm();
+function syncT() {
+  $("category").hidden = $("ttype").value === "cred";
+  $("tHint").textContent = $("tpend").checked
+    ? "En attente : la date est la date prévue (facultative). Prise en compte dans le budget, à valider plus tard dans la liste « En attente »."
+    : ($("ttype").value === "cred" ? "Crédit enregistré tout de suite à la date choisie." : "Dépense enregistrée tout de suite à la date choisie.");
+}
+$("ttype").onchange = syncT; $("tpend").onchange = syncT;
+
+function resetAddForm() {
+  wEditId = null;
+  $("label").value = ""; $("amount").value = ""; $("date").value = today;
+  $("tpend").checked = false; $("tpend").disabled = false;
+  $("btnAdd").textContent = "Ajouter"; $("btnAddCancel").hidden = true;
+  syncT();
+}
+function startWaitEdit(w) {
+  wEditId = w.id;
+  $("ttype").value = w.type === "in" ? "cred" : "exp";
+  $("label").value = w.label; $("amount").value = w.amount;
+  $("category").value = w.cat || "Autre"; $("account").value = w.account || "Commun"; $("date").value = w.due || "";
+  $("tpend").checked = true; $("tpend").disabled = true;
+  $("btnAdd").textContent = "Enregistrer"; $("btnAddCancel").hidden = false;
+  syncT(); $("label").scrollIntoView({ behavior: "smooth", block: "center" }); $("label").focus();
+}
+$("btnAddCancel").onclick = resetAddForm;
+
+$("btnAdd").onclick = async () => {
+  const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;
+  const pend = $("tpend").checked, cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
+  if (!label || !(amount > 0) || (!pend && !date)) return;
+  const by = auth.currentUser.email;
+  if (wEditId) {
+    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category });
+    resetAddForm(); return;
+  }
+  if (pend) {
+    await addDoc(collection(db, "pending"), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, done: false, by, created: serverTimestamp() });
+  } else if (cred) {
+    await addDoc(collection(db, "pending"), { type: "in", label, amount, account, due: date, cat: "", done: true, doneDate: date, by, created: serverTimestamp() });
+  } else {
+    await addDoc(collection(db, "expenses"), { label, amount, date, category, account, month: date.slice(0, 7), by, created: serverTimestamp() });
+  }
+  resetAddForm();
+  if (!pend && date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
 };
+resetAddForm();
 
 const PEOPLE = ["Julien", "Marie", "Kélia", "Milio"];
 function renderGifts() {

@@ -247,6 +247,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <option>Santé</option><option>Enfants</option><option>Autre</option>
       </select>
       <input id="pmonth" type="month" aria-label="Mois prévu">
+      <label class="mute" style="display:flex;gap:6px;align-items:center;flex:1 1 100%"><input id="pYear" type="checkbox" style="width:auto"> Revient chaque année (Noël, anniversaires…)</label>
       <button id="btnPlan">Prévoir</button>
       <button class="ghost" id="btnPlanCancel" hidden>Annuler</button>
     </div>
@@ -855,12 +856,22 @@ const goTab = id => { document.querySelectorAll("nav button").forEach(x => x.cla
 $("goFixed").onclick = () => goTab("tabFixed");
 $("goInc").onclick = () => goTab("tabInc");
 
+function occOf(p) {
+  if (!p.yearly) return p.month;
+  const cur = today.slice(0, 7), mm = p.month.slice(5);
+  let occ = cur.slice(0, 4) + "-" + mm;
+  if (occ < p.month) occ = p.month;
+  if (occ < cur) occ = (+cur.slice(0, 4) + 1) + "-" + mm;
+  return occ;
+}
+const occursIn = (p, m) => p.yearly ? (m >= p.month && m.slice(5) === p.month.slice(5)) : p.month === m;
 const planBuysOf = id => planBuys.filter(x => x.planId === id);
-const planSpent = p => planBuysOf(p.id).reduce((t, x) => t + x.amount, 0);
+const buysFor = (p, occ) => planBuys.filter(x => x.planId === p.id && (!p.yearly || x.planMonth === occ));
+const planSpent = (p, occ = occOf(p)) => buysFor(p, occ).reduce((t, x) => t + x.amount, 0);
 function planFor(m) {
   let total = 0, actual = 0;
-  planned.filter(p => p.month === m).forEach(p => {
-    const A = planSpent(p), Am = planBuysOf(p.id).filter(x => x.month === m).reduce((t, x) => t + x.amount, 0);
+  planned.filter(p => occursIn(p, m)).forEach(p => {
+    const bs = buysFor(p, m), A = bs.reduce((t, x) => t + x.amount, 0), Am = bs.filter(x => x.month === m).reduce((t, x) => t + x.amount, 0);
     total += Am + Math.max(p.amount - A, 0); actual += Am;
   });
   return { total, actual };
@@ -873,7 +884,7 @@ $("pmonth").value = nextMonth();
 function renderPlan() {
   if (planDetailId) { const p = planned.find(x => x.id === planDetailId); p ? renderPlanDetail(p) : closePlan(); }
   const m = $("month").value, cur = today.slice(0, 7);
-  const list = planned.filter(p => p.month >= cur || p.month === m).sort((a, b) => a.month.localeCompare(b.month));
+  const list = planned.filter(p => p.yearly || p.month >= cur || p.month === m).sort((a, b) => occOf(a).localeCompare(occOf(b)));
   $("planList").innerHTML = "";
   if (!list.length) { $("planList").innerHTML = "<li class='mute'>Aucune dépense prévue.</li>"; return; }
   list.forEach(p => {
@@ -882,7 +893,7 @@ function renderPlan() {
     b.innerHTML = "<span style='flex:1;min-width:0'><span class='nm'></span><small></small><span class='bar' style='display:block;height:6px;margin:6px 0 0'><i></i></span></span><span class='amt'><b></b><small></small></span>";
     const L = b.children[0], R = b.children[1];
     L.querySelector(".nm").textContent = p.label;
-    L.querySelector("small").textContent = `${monthLabel(p.month)} · ${p.category}`;
+    L.querySelector("small").textContent = `${monthLabel(occOf(p))} · ${p.category}${p.yearly ? " · ↻ chaque année" : ""}`;
     const f = L.querySelector("i"); f.style.width = st.pct + "%"; f.style.background = st.col;
     R.querySelector("b").textContent = eur0(p.amount);
     R.querySelector("small").textContent = st.left < 0 ? `dépassé de ${eur0(-st.left)}` : `reste ${eur0(st.left)}`;
@@ -906,10 +917,10 @@ function renderPlanDetail(p) {
   $("pdLeft").textContent = eur(st.left); $("pdLeft").style.color = st.col;
   $("pdFill").style.width = st.pct + "%"; $("pdFill").style.background = st.col;
   $("pdSum").textContent = `${eur(st.A)} dépensés sur ${eur(p.amount)}`;
-  $("pdInfo").textContent = `Prévu en ${monthLabel(p.month)} · ${p.category}`;
+  $("pdInfo").textContent = `Prévu en ${monthLabel(occOf(p))} · ${p.category}${p.yearly ? " · revient chaque année" : ""}`;
   $("pdEdit").onclick = () => startPlanEdit(p);
   $("pdDel").onclick = () => confirm("Supprimer « " + p.label + " » ? Les achats déjà saisis restent dans les dépenses du mois.") && deleteDoc(doc(db, "planned", p.id));
-  const buys = planBuysOf(p.id).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const buys = buysFor(p, occOf(p)).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   $("pbEmpty").hidden = buys.length > 0;
   $("pbList").innerHTML = "";
   buys.forEach(x => {
@@ -929,19 +940,19 @@ $("pbAdd").onclick = async () => {
   const p = planned.find(x => x.id === planDetailId); if (!p) return;
   const label = $("pbLabel").value.trim(), amount = parseFloat($("pbAmount").value), date = $("pbDate").value;
   if (!label || !(amount > 0) || !date) return;
-  await addDoc(collection(db, "expenses"), { label, amount, date, category: p.category, account: $("pbAccount").value, planId: p.id, planLabel: p.label, month: date.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp() });
+  await addDoc(collection(db, "expenses"), { label, amount, date, category: p.category, account: $("pbAccount").value, planId: p.id, planLabel: p.label, planMonth: occOf(p), month: date.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp() });
   $("pbLabel").value = ""; $("pbAmount").value = "";
 };
 
 function resetPlanForm() {
   planEditId = null;
-  $("plabel").value = ""; $("pamount").value = ""; $("pmonth").value = nextMonth();
+  $("plabel").value = ""; $("pamount").value = ""; $("pmonth").value = nextMonth(); $("pYear").checked = false;
   $("btnPlan").textContent = "Prévoir"; $("btnPlanCancel").hidden = true;
   $("ptitle").textContent = "📅 Dépenses prévues";
 }
 function startPlanEdit(p) {
   closePlan(); planEditId = p.id;
-  $("plabel").value = p.label; $("pamount").value = p.amount; $("pcat").value = p.category; $("pmonth").value = p.month;
+  $("plabel").value = p.label; $("pamount").value = p.amount; $("pcat").value = p.category; $("pmonth").value = p.month; $("pYear").checked = !!p.yearly;
   $("btnPlan").textContent = "Enregistrer"; $("btnPlanCancel").hidden = false;
   $("ptitle").textContent = "Modifier la dépense prévue";
   $("plabel").scrollIntoView({ behavior: "smooth", block: "center" }); $("plabel").focus();
@@ -951,8 +962,10 @@ $("btnPlanCancel").onclick = () => { const w = planEditId; resetPlanForm(); if (
 $("btnPlan").onclick = async () => {
   const label = $("plabel").value.trim(), amount = parseFloat($("pamount").value), month = $("pmonth").value;
   if (!label || !(amount > 0) || !month) return;
-  const was = planEditId, data = { label, amount, month, category: $("pcat").value };
+  const was = planEditId, data = { label, amount, month, category: $("pcat").value, yearly: $("pYear").checked };
   if (was) {
+    const old = planned.find(x => x.id === was);
+    if (old && data.yearly && !old.yearly) await Promise.all(planBuysOf(was).filter(x => !x.planMonth).map(x => updateDoc(doc(db, "expenses", x.id), { planMonth: old.month })));
     await updateDoc(doc(db, "planned", was), data);
   } else {
     await addDoc(collection(db, "planned"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });

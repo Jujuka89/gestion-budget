@@ -156,14 +156,14 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </section>
 
   <section>
-    <h2>Dépenses du mois</h2>
+    <h2>Transactions du mois</h2>
     <div class="legend">
       <span><i style="background:var(--rose);border-color:var(--rose-b)"></i>Marie</span>
       <span><i style="background:var(--bleu);border-color:var(--bleu-b)"></i>Julien</span>
       <span><i style="background:var(--blanc);border-color:var(--blanc-b)"></i>Compte commun</span>
     </div>
     <ul id="list"></ul>
-    <p id="empty" class="mute">Aucune dépense. Ajoutez la première ci-dessus.</p>
+    <p id="empty" class="mute">Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.</p>
   </section>
   </div>
 
@@ -494,22 +494,33 @@ function render() {
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
     .map(([c, v]) => `<div class="cat"><span>${c}</span><b>${eur0(v)}</b></div>`).join("") || "Aucune dépense ce mois-ci.";
 
-  $("empty").textContent = "Aucune dépense. Ajoutez la première ci-dessus.";
-  $("empty").hidden = expenses.length > 0;
+  $("empty").textContent = "Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.";
+  const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m);
+  const rows = [...expenses.map(e => ({ k: "e", e, date: e.date || "" })), ...credits.map(w => ({ k: "c", w, date: w.doneDate }))]
+    .sort((a, b) => b.date.localeCompare(a.date));
+  $("empty").hidden = rows.length > 0;
   $("list").innerHTML = "";
-  expenses.forEach(e => {
-    const li = document.createElement("li");
-    if (e.account) li.className = "acc-" + e.account;
+  rows.forEach(({ k, e, w }) => {
+    const x = k === "e" ? e : w, li = document.createElement("li");
+    if (x.account) li.className = "acc-" + x.account;
     const l = document.createElement("div");
     l.innerHTML = "<div></div><div class='mute'></div>";
-    const pp = e.planId && (planned.find(x => x.id === e.planId) || { label: e.planLabel });
-    l.children[0].textContent = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
-    l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+    if (k === "e") {
+      const pp = e.planId && (planned.find(p => p.id === e.planId) || { label: e.planLabel });
+      l.children[0].textContent = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
+      l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+    } else {
+      l.children[0].textContent = w.label;
+      l.children[1].textContent = `${new Date(w.doneDate).toLocaleDateString("fr-FR")} · Revenu reçu${w.account ? " · " + w.account : ""} · ${(w.by || "").split("@")[0]}`;
+    }
     const r = document.createElement("div");
-    r.innerHTML = `<span class="amt">${eur(e.amount)}</span>`;
+    const sp = document.createElement("span"); sp.className = "amt";
+    sp.textContent = (k === "e" ? "− " : "+ ") + eur(x.amount || 0);
+    sp.style.cssText = "font-weight:700;color:" + (k === "e" ? "var(--bad)" : "var(--ok)");
+    r.append(sp);
     const b = document.createElement("button");
-    b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + e.label);
-    b.onclick = () => confirm("Supprimer cette dépense ?") && deleteDoc(doc(db, "expenses", e.id));
+    b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + x.label);
+    b.onclick = () => confirm(k === "e" ? "Supprimer cette dépense ?" : "Supprimer ce revenu ?") && deleteDoc(doc(db, k === "e" ? "expenses" : "pending", x.id));
     r.append(b); li.append(l, r); $("list").append(li);
   });
   renderFixed();

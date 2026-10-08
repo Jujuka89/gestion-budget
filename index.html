@@ -135,10 +135,11 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
 
   <section>
     <h2>⏳ En attente</h2>
-    <p class="mute">Paiements à ne pas oublier et revenus prévus. Cette liste n'est pas comptée dans le budget.</p>
+    <p class="mute">Paiements à venir (chèque, prélèvement…) et revenus prévus. Ils sont pris en compte dans le budget du mois prévu (ou du mois en cours sans date). Cliquez sur « Valider » quand le paiement est débité ou le revenu reçu : un paiement devient alors une vraie dépense.</p>
     <div class="row">
       <select id="wType" aria-label="Type"><option value="pay">Paiement à faire</option><option value="in">Revenu attendu</option></select>
-      <input id="wLabel" placeholder="Libellé (ex. facture dentiste)">
+      <input id="wLabel" placeholder="Libellé (ex. chèque dentiste)">
+      <select id="wCat" aria-label="Catégorie"></select>
       <input id="wAmount" type="number" step="0.01" min="0" placeholder="Montant (€)">
       <select id="wAccount" aria-label="Compte"><option>Julien</option><option>Marie</option><option selected>Commun</option></select>
       <input id="wDate" type="date" aria-label="Date prévue (facultatif)">
@@ -403,7 +404,7 @@ function listen() {
   splitDirty = false; fillSplit();
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderWait();
+    render(); renderSplit(); renderWait();
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -466,9 +467,9 @@ function render() {
   const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
   const jow = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
-  const pl = planFor(m), es = estFor();
+  const pl = planFor(m), es = estFor(), pd = pendSum(m, "all");
   const other = spent - fixedTotal - food - jow - pl.actual - es.actual;
-  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan + (pl.total - pl.actual) + (es.total - es.actual);
+  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan + (pl.total - pl.actual) + (es.total - es.actual) + pd.pay - pd.inc;
   const left = sal - committed, pct = sal > 0 ? Math.min(100, committed / sal * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("left").textContent = sal > 0 ? eur0(left) : "—";
@@ -476,10 +477,11 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal], ["− Dépenses mensuelles fixes", fixedTotal], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Revenus attendus", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (i >= 3 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
+    if (t.startsWith("+")) d.children[1].style.color = "var(--ok)";
     if (i) d.children[1].style.fontWeight = 400;
     $("sum").append(d);
     if (i === 3) $("sum").append(miniGauge("Commandes Jow ce mois-ci", jow, jowPlan));
@@ -861,7 +863,7 @@ function renderFuture() {
     const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
     const av = real > 0 ? null : salAvg(x);
     const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
-    const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot;
+    const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot + pendCost(x);
     const d = document.createElement("div"); d.className = "fut";
     d.innerHTML = "<div class='mute'></div><b></b><div class='mute' style='font-size:.75rem'></div>";
     d.children[0].textContent = new Date(x + "-01").toLocaleDateString("fr-FR", { month: "long" });
@@ -878,7 +880,7 @@ function projRem(x) {
   const sal = real > 0 ? real : av ? av.a[0] + av.a[1] : 0;
   if (!(sal > 0)) return null;
   const estTot = Object.keys(estimates).reduce((t, c) => t + estAmt(c), 0);
-  return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot);
+  return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot + pendCost(x));
 }
 function giftPlan() {
   const cur = today.slice(0, 7), S = [];
@@ -903,32 +905,63 @@ function giftWhen(g, gp) {
   return k < 0 ? "Pas avant plus de 2 ans" : k === 0 ? "Possible dès ce mois-ci" : "Possible dès " + monthLabel(nmo(gp.cur, k));
 }
 
+const wMonth = w => {
+  const cur = today.slice(0, 7);
+  if (w.done) return (w.doneDate || today).slice(0, 7);
+  const d = w.due ? w.due.slice(0, 7) : cur;
+  return d > cur ? d : cur;
+};
+function pendSum(m, who) {
+  let pay = 0, inc = 0;
+  waits.forEach(w => {
+    if (who && who !== "all") { const common = w.account !== "Julien" && w.account !== "Marie"; if (who === "Commun" ? !common : w.account !== who) return; }
+    if (wMonth(w) !== m) return;
+    if (w.type === "in") inc += w.amount || 0; else if (!w.done) pay += w.amount || 0;
+  });
+  return { pay, inc };
+}
+const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; };
+
+$("wCat").innerHTML = $("category").innerHTML; $("wCat").value = "Autre";
+const syncWType = () => { $("wCat").hidden = $("wType").value === "in"; };
+$("wType").onchange = syncWType;
+
+async function validateWait(w) {
+  if (w.type === "pay") {
+    await addDoc(collection(db, "expenses"), { label: w.label, amount: w.amount, date: today, category: w.cat || "Autre", account: w.account || "Commun", month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id });
+  }
+  await updateDoc(doc(db, "pending", w.id), { done: true, doneDate: today });
+}
+
 function renderWait() {
   const ul = $("waitList"); ul.innerHTML = "";
   const open = waits.filter(w => !w.done), sum = t => open.filter(w => w.type === t).reduce((a, w) => a + (w.amount || 0), 0);
   $("waitTotal").textContent = waits.length ? `À payer : ${eur(sum("pay"))} · À recevoir : ${eur(sum("in"))}` : "Rien en attente pour l'instant.";
   waits.slice().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.due || "9999").localeCompare(b.due || "9999") || (a.label || "").localeCompare(b.label || "")).forEach(w => {
-    const li = document.createElement("li"), lb = document.createElement("label"), isIn = w.type === "in";
+    const li = document.createElement("li"), isIn = w.type === "in";
     if (w.account) li.className = "acc-" + w.account;
-    lb.style.cssText = "display:flex;gap:8px;align-items:center;flex:1;min-width:0;cursor:pointer";
-    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!w.done; cb.style.width = "auto";
-    cb.setAttribute("aria-label", (isIn ? "Reçu : " : "Payé : ") + w.label);
-    cb.onchange = () => updateDoc(doc(db, "pending", w.id), { done: cb.checked });
     const box = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
+    box.style.cssText = "flex:1;min-width:0";
     t.textContent = w.label; m.className = "mute"; m.style.fontSize = ".8rem";
     const late = !w.done && w.due && w.due < today;
-    m.textContent = (isIn ? "Revenu attendu" : "Paiement à faire") + (w.account ? " · " + w.account : "") + (w.due ? " · " + new Date(w.due).toLocaleDateString("fr-FR") : "") + (late ? " · en retard" : "") + (w.done ? (isIn ? " · reçu" : " · payé") : "");
+    m.textContent = (isIn ? "Revenu attendu" : "Paiement à faire") + (!isIn && w.cat ? " · " + w.cat : "") + (w.account ? " · " + w.account : "") + (w.due ? " · " + new Date(w.due).toLocaleDateString("fr-FR") : "") + (late ? " · en retard" : "") + (w.done ? (isIn ? " · reçu" : " · payé") : "");
     if (late) m.style.color = "var(--bad)";
     if (w.done) t.style.cssText = "text-decoration:line-through;color:var(--mute)";
-    box.append(t, m); lb.append(cb, box);
-    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center";
+    box.append(t, m);
+    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end";
     const a = document.createElement("span"); a.className = "amt"; a.textContent = (isIn ? "+ " : "− ") + eur(w.amount || 0);
-    a.style.color = isIn ? "var(--ok)" : "var(--ink)";
-    const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + w.label);
-    ed.onclick = () => { wEditId = w.id; $("wType").value = w.type; $("wLabel").value = w.label; $("wAmount").value = w.amount; $("wAccount").value = w.account || "Commun"; $("wDate").value = w.due || ""; $("btnWait").textContent = "Enregistrer"; $("btnWaitCancel").hidden = false; $("wLabel").focus(); };
+    a.style.cssText = "font-weight:700;color:" + (isIn ? "var(--ok)" : "var(--bad)");
+    r.append(a);
+    if (!w.done) {
+      const ok = document.createElement("button"); ok.textContent = "✓ Valider"; ok.setAttribute("aria-label", "Valider " + w.label);
+      ok.onclick = () => validateWait(w);
+      const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + w.label);
+      ed.onclick = () => { wEditId = w.id; $("wType").value = w.type; syncWType(); $("wLabel").value = w.label; $("wAmount").value = w.amount; $("wCat").value = w.cat || "Autre"; $("wAccount").value = w.account || "Commun"; $("wDate").value = w.due || ""; $("btnWait").textContent = "Enregistrer"; $("btnWaitCancel").hidden = false; $("wLabel").focus(); };
+      r.append(ok, ed);
+    }
     const del = document.createElement("button"); del.className = "ghost"; del.textContent = "✕"; del.setAttribute("aria-label", "Supprimer " + w.label);
-    del.onclick = () => confirm("Supprimer « " + w.label + " » ?") && deleteDoc(doc(db, "pending", w.id));
-    r.append(a, ed, del); li.append(lb, r); ul.append(li);
+    del.onclick = () => confirm("Supprimer « " + w.label + " » ?" + (w.done && !isIn ? " La dépense déjà validée reste dans les dépenses du mois." : "")) && deleteDoc(doc(db, "pending", w.id));
+    r.append(del); li.append(box, r); ul.append(li);
   });
 }
 function resetWaitForm() { wEditId = null; $("wLabel").value = ""; $("wAmount").value = ""; $("wDate").value = ""; $("btnWait").textContent = "Ajouter"; $("btnWaitCancel").hidden = true; }
@@ -936,7 +969,7 @@ $("btnWaitCancel").onclick = resetWaitForm;
 $("btnWait").onclick = async () => {
   const label = $("wLabel").value.trim(), amount = parseFloat($("wAmount").value);
   if (!label || !(amount > 0)) return;
-  const data = { type: $("wType").value, label, amount, account: $("wAccount").value, due: $("wDate").value };
+  const data = { type: $("wType").value, label, amount, account: $("wAccount").value, due: $("wDate").value, cat: $("wType").value === "pay" ? $("wCat").value : "" };
   if (wEditId) await updateDoc(doc(db, "pending", wEditId), data);
   else await addDoc(collection(db, "pending"), { ...data, done: false, by: auth.currentUser.email, created: serverTimestamp() });
   resetWaitForm();
@@ -1003,13 +1036,13 @@ function acctRem(m) {
   else { const av = salAvg(m); if (!av) return null; a = { Julien: av.a[ix.j] || 0, Marie: av.a[ix.m] || 0 }; }
   const tot = a.Julien + a.Marie;
   if (!(tot > 0)) return null;
-  const common = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0) + foodBudgetFor(m) + planFor(m).total;
+  const common = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0) + foodBudgetFor(m) + planFor(m).total + pendCost(m, "Commun");
   const out = {};
   ["Julien", "Marie"].forEach(p => {
     const c = common * a[p] / tot;
     const pf = fixed.filter(f => f.account === p).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
     const pe = expenses.filter(e => e.account === p).reduce((t, e) => t + e.amount, 0);
-    out[p] = { c, left: a[p] - c - pf - pe };
+    out[p] = { c, left: a[p] - c - pf - pe - pendCost(m, p) };
   });
   return out;
 }
@@ -1063,7 +1096,7 @@ function renderSplit() {
   $("s1a").placeholder = avg && avg.a[0] ? `Moyenne ${eur0(avg.a[0])} · saisir le salaire exact (€)` : "Salaire net (€)";
   $("s2a").placeholder = avg && avg.a[1] ? `Moyenne ${eur0(avg.a[1])} · saisir le salaire exact (€)` : "Salaire net (€)";
   const fx = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const food = foodBudgetFor(m), pln = planFor(m).total, need = fx + food + pln;
+  const food = foodBudgetFor(m), pln = planFor(m).total, pc = pendCost(m, "Commun"), need = Math.max(0, fx + food + pln + pc);
   let a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0], estNote = "";
   if (!(a[0] + a[1] > 0) && avg) { a = avg.a; estNote = `Estimation basée sur la moyenne des salaires de ${avg.n} mois précédent(s). Saisissez les salaires exacts pour valider.`; }
   const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
@@ -1072,6 +1105,7 @@ function renderSplit() {
   $("sNeed").append(row("Dépenses fixes du compte commun", eur(fx)));
   $("sNeed").append(row("Budget alimentaire", eur(food)));
   if (pln) $("sNeed").append(row("Dépenses prévues", eur(pln)));
+  if (pc) $("sNeed").append(row("Paiements en attente (compte commun)", eur(pc)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];

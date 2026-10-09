@@ -113,6 +113,11 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   <div id="tabMonth">
   <div id="monthGrid">
     <div id="colM">
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+        <button class="ghost" id="mPrev" aria-label="Mois précédent" style="font-size:1.4rem;padding:4px 14px">‹</button>
+        <div id="monthBig" role="heading" aria-level="2" style="font-size:2.2rem;font-weight:700;text-align:center;text-transform:capitalize;line-height:1.1"></div>
+        <button class="ghost" id="mNext" aria-label="Mois suivant" style="font-size:1.4rem;padding:4px 14px">›</button>
+      </div>
   <section id="sNotice" hidden>
     <div>⚠️ Les salaires de ce mois ne sont pas encore saisis : la répartition du compte commun ne peut pas être calculée.</div>
     <div class="row" style="margin-top:10px"><button id="btnGoSplit">Saisir les salaires</button></div>
@@ -502,6 +507,7 @@ const byRecent = (a, b) => (b.date || "").localeCompare(a.date || "") || (addedA
 function listen() {
   const m = $("month").value;
   if (!m) return;
+  updateMonthTitle();
   splitDirty = false; fillSplit();
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -551,7 +557,7 @@ function listen() {
 
 
 function render() {
-  renderPlan(); renderEst(); renderFuture();
+  updateMonthTitle(); renderPlan(); renderEst(); renderFuture();
   const m = $("month").value;
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
@@ -1503,6 +1509,14 @@ function renderYear(m, left) {
   $("yearVal").textContent = ok ? eur0(tot) : "—";
   $("yearVal").style.color = ok && tot < 0 ? "var(--bad)" : "var(--ok)";
 }
+
+function updateMonthTitle() {
+  const m = $("month").value;
+  $("monthBig").textContent = m ? new Date(m + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) : "";
+}
+const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month").value = nmo(m, k); $("month").onchange(); };
+$("mPrev").onclick = () => shiftMonth(-1);
+$("mNext").onclick = () => shiftMonth(1);
 
 function foodBudgetFor(m) {
   if (foodB[m] != null) return foodB[m];

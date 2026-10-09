@@ -1111,7 +1111,18 @@ function renderFuture() {
     d.children[1].textContent = sal > 0 ? eur0(sal - out) : "—";
     if (sal > 0 && sal - out < 0) d.children[1].style.color = "var(--bad)";
     d.children[2].textContent = sal > 0 ? (real > 0 ? "salaires saisis" : "prévision") : "salaires inconnus";
+    d.style.cursor = "pointer"; d.tabIndex = 0; d.setAttribute("role", "button");
+    d.setAttribute("aria-label", "Voir " + new Date(x + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }));
+    const go = () => { $("month").value = x; $("month").onchange(); window.scrollTo(0, 0); };
+    d.onclick = go; d.onkeydown = e => { if (e.key === "Enter") go(); };
     box.append(d);
+  }
+  if (m !== today.slice(0, 7)) {
+    const b = document.createElement("div"); b.className = "fut"; b.style.cssText = "cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;padding:10px 12px";
+    b.tabIndex = 0; b.setAttribute("role", "button"); b.textContent = "↩ Mois en cours";
+    const back = () => { $("month").value = today.slice(0, 7); $("month").onchange(); window.scrollTo(0, 0); };
+    b.onclick = back; b.onkeydown = e => { if (e.key === "Enter") back(); };
+    box.append(b);
   }
 }
 

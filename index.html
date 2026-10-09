@@ -130,7 +130,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="bar"><i id="fill"></i></div>
     <div id="yearBox" style="margin:12px 0 0;padding:10px;border:1px dashed var(--line);border-radius:8px" hidden>
       <div class="cat" style="padding:0"><span class="mute" id="yearLab"></span><b id="yearVal" style="font-size:1.3rem;font-variant-numeric:tabular-nums"></b></div>
-      <div class="mute" style="font-size:.75rem">Estimation : on additionne ce qu'il restera chaque mois jusqu'en décembre (salaires, dépenses fixes, Jow, dépenses prévues et estimées).</div>
+      <div class="mute" style="font-size:.75rem">Estimation sur l'année entière : salaires (moyenne si non saisis) moins dépenses fixes, Jow, dépenses prévues et estimées, et dépenses saisies.</div>
       <details style="margin-top:6px;font-size:.85rem"><summary class="mute">Voir le détail de l'année</summary><div id="yearDet" style="margin-top:6px"></div></details>
     </div>
     <div id="acctBox" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
@@ -590,7 +590,7 @@ function render() {
     if (i === 6) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
   });
 
-  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m, sal > 0 ? { sal, fixed: fixedTotal, jow: jowPlan, plan: pl.total, est: es.total, pend: pd.pay - pd.inc, misc: food + other } : null); if (acctName) renderAcctPage();
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); if (acctName) renderAcctPage();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
@@ -1502,24 +1502,29 @@ function monthParts(x) {
   const av = real > 0 ? null : salAvg(x);
   const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
   if (!(sal > 0)) return null;
-  return { sal, fixed: fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0), jow: foodBudgetFor(x), plan: planFor(x).total, est: Object.keys(estimates).reduce((t, c) => t + estAmt(c), 0), pend: pendCost(x), misc: 0 };
+  const sum = l => l.reduce((t, e) => t + e.amount, 0);
+  const E = histExp.filter(e => e.month === x), S = sum(E), jowS = sum(E.filter(e => e.category === "Jow"));
+  const pl = planFor(x), pd = pendSum(x, "all");
+  let esT = 0, esA = 0;
+  Object.keys(estimates).forEach(c => { const A = sum(E.filter(e => e.category === c && !e.planId)); esT += Math.max(estAmt(c), A); esA += A; });
+  return { sal, fixed: fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0), jow: Math.max(foodBudgetFor(x), jowS), plan: pl.total, est: esT, pend: pd.pay - pd.inc, misc: S - jowS - pl.actual - esA };
 }
-function renderYear(m, cur) {
-  const box = $("yearBox");
-  if (!cur || m < today.slice(0, 7)) { box.hidden = true; return; }
-  const yr = m.slice(0, 4), T = { ...cur }; let n = 1, ok = true;
+function renderYear(m) {
+  const box = $("yearBox"), yr = m.slice(0, 4);
+  const T = { sal: 0, fixed: 0, jow: 0, plan: 0, est: 0, pend: 0, misc: 0 }; let n = 0, skipped = 0;
   for (let k = 1; k <= 12; k++) {
-    const x = nmo(m, k); if (x.slice(0, 4) !== yr) break;
-    const p = monthParts(x); if (!p) { ok = false; break; }
+    const p = monthParts(yr + "-" + String(k).padStart(2, "0"));
+    if (!p) { skipped++; continue; }
     Object.keys(T).forEach(key => T[key] += p[key]); n++;
   }
+  if (!n) { box.hidden = true; return; }
   const tot = T.sal - (T.fixed + T.jow + T.plan + T.est + T.pend + T.misc);
   box.hidden = false;
   $("yearLab").textContent = "Reste final sur le total des comptes · fin décembre " + yr;
-  $("yearVal").textContent = ok ? eur0(tot) : "—";
-  $("yearVal").style.color = ok && tot < 0 ? "var(--bad)" : "var(--ok)";
+  $("yearVal").textContent = eur0(tot);
+  $("yearVal").style.color = tot < 0 ? "var(--bad)" : "var(--ok)";
   const det = $("yearDet"); det.innerHTML = "";
-  const rows = [[`+ Salaires et revenus fixes (${n} mois, moyenne si non saisis)`, T.sal], ["− Dépenses fixes", T.fixed], ["− Budget alimentaire Jow", T.jow], ["− Dépenses prévues", T.plan], ["− Dépenses estimées", T.est], [T.pend < 0 ? "+ Crédits en attente" : "− Paiements en attente", Math.abs(T.pend)], ["− Courses et autres dépenses déjà saisies", T.misc]];
+  const rows = [[`+ Salaires et revenus fixes (${n} mois, moyenne si non saisis)`, T.sal], ["− Dépenses fixes", T.fixed], ["− Budget alimentaire Jow", T.jow], ["− Dépenses prévues", T.plan], ["− Dépenses estimées", T.est], [T.pend < 0 ? "+ Crédits en attente" : "− Paiements en attente", Math.abs(T.pend)], ["− Courses et autres dépenses saisies", T.misc]];
   rows.forEach(([t, v], i) => {
     if (i > 1 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
@@ -1528,7 +1533,7 @@ function renderYear(m, cur) {
     det.append(d);
   });
   const note = document.createElement("div"); note.className = "mute"; note.style.fontSize = ".75rem";
-  note.textContent = "Les courses et dépenses non prévues des mois à venir ne sont pas comptées.";
+  note.textContent = "Année complète (janvier à décembre), identique quel que soit le mois affiché." + (skipped ? ` ${skipped} mois sans salaire connu ne sont pas comptés.` : "") + " Les courses et dépenses non prévues des mois à venir ne sont pas comptées.";
   det.append(note);
 }
 

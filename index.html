@@ -269,14 +269,17 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <section id="acMut" hidden>
       <h2>🩺 Mutuelle · remboursements <span id="acMutYear" class="mute"></span></h2>
       <div id="acMutList"></div>
-      <details style="margin-top:8px"><summary class="mute">Ajouter / modifier un poste de mutuelle</summary>
+      <details style="margin-top:8px"><summary class="mute">Ajouter / modifier une règle de remboursement</summary>
         <div class="row" style="margin-top:8px">
-          <input id="mLabel" placeholder="Poste (ex. lentilles, kiné)">
-          <input id="mYear" type="number" step="1" min="0" placeholder="Remboursement par an (€)">
-          <input id="mUnit" type="number" step="1" min="0" placeholder="€ par séance (facultatif)">
+          <select id="mWho" aria-label="Pour qui"><option>Julien</option><option>Marie</option><option>Kélia</option><option>Milio</option></select>
+          <input id="mLabel" placeholder="Soin (ex. Ostéopathe, Médecin, Pharmacie, Kiné)">
+          <input id="mRate" type="number" step="1" min="0" max="100" placeholder="Remboursement (%)">
+          <input id="mUnit" type="number" step="1" min="0" placeholder="Max par séance (€)">
+          <input id="mYear" type="number" step="1" min="0" placeholder="Plafond par an (€)">
           <button id="mBtn">Ajouter</button>
           <button class="ghost" id="mCancel" hidden>Annuler</button>
         </div>
+        <div class="mute" style="font-size:.8rem;margin-top:6px">Renseignez au moins un des trois : un pourcentage, un maximum par séance ou un plafond annuel. Ex. Julien · Ostéopathe · 30 € par séance.</div>
       </details>
     </section>
     <section><h2>Dépenses par catégorie · ce mois-ci</h2><div id="acPie1"></div></section>
@@ -449,9 +452,15 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="mute" style="font-size:.85rem">Catégorie</div>
     <select id="category" style="width:100%"><option value="" selected disabled>Choisir une catégorie…</option>
         <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
-        <option>Santé</option><option>Lentilles</option><option>Médecin (remboursé)</option><option>Loisirs</option>
+        <option>Santé</option><option>Soins</option><option>Lentilles</option><option>Loisirs</option>
         <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Jeux</option><option>Animaux</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
       </select>
+    <div id="txCare" hidden style="margin-top:10px">
+      <div class="mute" style="font-size:.85rem">Type de soin</div>
+      <select id="careType" style="width:100%"></select>
+      <div class="mute" style="font-size:.85rem;margin-top:10px">Pour qui</div>
+      <div class="row" id="whoBtns"></div>
+    </div>
   </div>
   <div id="txStep3" hidden style="margin-top:12px">
     <div class="mute" style="font-size:.85rem">Compte</div>
@@ -465,7 +474,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <label class="mute" style="display:block;margin-top:8px;font-size:.85rem"><span id="dateLab">Date</span><input id="date" type="date" style="width:100%"></label>
     <div id="refBox" hidden style="margin-top:8px">
       <select id="refMut" hidden style="width:100%;margin-bottom:8px"></select>
-      <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€) — vide = montant total" style="width:100%">
+      <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€)" style="width:100%">
       <label class="mute" style="display:block;margin-top:8px;font-size:.85rem">Vérifier le remboursement le<input id="refDate" type="date" style="width:100%"></label>
     </div>
     <label class="mute" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
@@ -666,7 +675,7 @@ function render() {
     if (k === "e") {
       const pp = e.planId && (planned.find(p => p.id === e.planId) || { label: e.planLabel });
       l.children[0].textContent = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
-      l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+      l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.care ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
     } else {
       l.children[0].textContent = w.label;
       l.children[1].textContent = `${new Date(w.doneDate).toLocaleDateString("fr-FR")} · Revenu reçu${w.account ? " · " + w.account : ""} · ${(w.by || "").split("@")[0]}`;
@@ -1288,8 +1297,8 @@ const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; 
 
 async function validateWait(w, exact = w.amount, acc = w.account || "Commun") {
   if (w.type === "pay") {
-    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id });
-    if (w.cat === MED && w.refund > 0) await addRefund(w.label, w.refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
+    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, care: w.care || "", forWho: w.forWho || "" });
+    if (w.refund > 0) await addRefund(w.label, w.refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
   }
   await updateDoc(doc(db, "pending", w.id), { done: true, doneDate: today, amount: exact, expected: w.amount, account: acc });
 }
@@ -1376,31 +1385,74 @@ function renderAccBtns() {
   });
   $("accNote").textContent = list.length === 1 ? "Seul choix : compte " + list[0] : "";
 }
+const BENEF = ["Julien", "Marie", "Kélia", "Milio"];
+const CARE_DEFAULT = ["Ostéopathe", "Médecin", "Pharmacie"];
+let careFor = "", refManual = false;
+const fmtLeft = v => v === Infinity ? "illimité" : eur0(v);
+const careTypes = () => [...new Set([...CARE_DEFAULT, ...mutItems.map(i => i.label).filter(Boolean)])];
+const ruleFor = (care, who) => mutItems.find(i => i.person === who && (i.label || "").toLowerCase() === (care || "").toLowerCase());
+function ruleText(it) {
+  const p = [];
+  if (it.rate > 0) p.push(it.rate + " %");
+  if (it.unit > 0) p.push("max " + eur0(it.unit) + " par séance");
+  if (it.yearly > 0) p.push("plafond " + eur0(it.yearly) + " par an");
+  return p.join(" · ") || "sans règle";
+}
+function calcRefund(it, cost, year) {
+  let r = cost;
+  if (it.rate > 0) r = cost * it.rate / 100;
+  if (it.unit > 0) r = Math.min(r, it.unit);
+  return Math.max(0, Math.round(Math.min(r, cost, mutUsage(it, year).left) * 100) / 100);
+}
+function fillCare() {
+  const sel = $("careType"), cur = sel.value, list = careTypes();
+  sel.innerHTML = '<option value="">Choisir le soin…</option>' + list.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  if (list.includes(cur)) sel.value = cur;
+}
+function renderWho() {
+  const box = $("whoBtns"); box.innerHTML = "";
+  BENEF.forEach(w => {
+    const b = document.createElement("button"); b.textContent = w; b.className = careFor === w ? "" : "ghost";
+    b.onclick = () => { careFor = w; refManual = false; txUpdate(); };
+    box.append(b);
+  });
+}
 function txUpdate() {
   const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
   $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
   $("txStep2").hidden = !exp;
-  const hasCat = exp && $("category").value !== "";
-  $("txStep3").hidden = !(cred || hasCat);
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins";
+  $("txCare").hidden = !soins;
+  if (soins) { fillCare(); renderWho(); }
+  const careOk = !soins || ($("careType").value !== "" && careFor !== "");
+  $("txStep3").hidden = !(cred || (hasCat && careOk));
   if (!$("txStep3").hidden) renderAccBtns();
   const hasAcc = !$("txStep3").hidden && $("account").value !== "";
   $("txStep4").hidden = !hasAcc; $("btnAdd").hidden = !hasAcc;
-  const med = exp && $("category").value === MED;
-  $("refBox").hidden = !med;
-  if (med && !$("refDate").value) $("refDate").value = addDays(today, 10);
+  const med = exp && cat === MED, rule = soins && careOk ? ruleFor($("careType").value, careFor) : null;
+  $("refBox").hidden = !(med || rule);
+  $("refMut").hidden = true;
+  if ((med || rule) && !$("refDate").value) $("refDate").value = addDays(today, 10);
   if (med) fillRefMut();
+  if (rule && !refManual) { const c = calcRefund(rule, parseFloat($("amount").value) || 0, ($("date").value || today).slice(0, 4)); $("refAmt").value = c > 0 ? c : ""; }
   $("dateLab").textContent = $("tpend").checked ? "Date prévue (facultative)" : "Date";
   $("tHint").textContent = $("tpend").checked
     ? "En attente : prise en compte dans le budget, à valider plus tard dans la liste « En attente »."
     : (cred ? "Crédit enregistré tout de suite à la date choisie." : "Dépense enregistrée tout de suite à la date choisie.");
   if (med) $("tHint").textContent += " Une ligne « Remboursement » sera ajoutée en attente.";
+  if (soins && careOk) $("tHint").textContent += rule
+    ? ` Mutuelle (${rule.label} · ${rule.person}) : ${ruleText(rule)}. Le remboursement est calculé automatiquement et reste modifiable.`
+    : ` Aucune règle de mutuelle pour ${$("careType").value} · ${careFor} : ajoutez-la dans la page d'un compte, rubrique Mutuelle.`;
 }
 $("tDep").onclick = () => { $("ttype").value = "exp"; txUpdate(); };
 $("tCred").onclick = () => { $("ttype").value = "cred"; txUpdate(); };
-$("category").onchange = txUpdate; $("tpend").onchange = txUpdate;
+$("category").onchange = () => { refManual = false; txUpdate(); };
+$("tpend").onchange = txUpdate; $("amount").oninput = txUpdate; $("date").onchange = txUpdate;
+$("careType").onchange = () => { refManual = false; txUpdate(); };
+$("refAmt").oninput = () => { refManual = true; };
 
 function resetAddForm() {
-  wEditId = null;
+  wEditId = null; careFor = ""; refManual = false; $("careType").value = "";
   $("ttype").value = ""; $("category").value = ""; $("account").value = "";
   $("label").value = ""; $("amount").value = ""; $("date").value = today;
   $("tpend").checked = false; $("tpend").disabled = false;
@@ -1417,13 +1469,15 @@ function startWaitEdit(w) {
   resetAddForm();
   wEditId = w.id;
   $("ttype").value = w.type === "in" ? "cred" : "exp";
-  if (w.type !== "in") $("category").value = w.cat || "Autre";
+  if (w.type !== "in") { const c = w.cat || "Autre"; if (![...$("category").options].some(o => o.value === c)) $("category").add(new Option(c, c)); $("category").value = c; }
+  careFor = w.forWho || "";
   $("account").value = w.account || "Commun";
   $("label").value = w.label; $("amount").value = w.amount; $("date").value = w.due || "";
   $("refAmt").value = w.refund || ""; $("refDate").value = w.refundDue || "";
   $("tpend").checked = true; $("tpend").disabled = true;
   $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
   txUpdate();
+  if (w.care) { $("careType").value = w.care; refManual = true; $("refAmt").value = w.refund || ""; txUpdate(); }
   $("refMut").value = w.mutId || "";
   if (w.done) $("tHint").textContent = "Élément déjà validé : la modification ne change pas la dépense déjà enregistrée.";
   $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
@@ -1435,22 +1489,27 @@ $("btnAddDel").onclick = async () => {
 };
 
 $("btnAdd").onclick = async () => {
-  const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;
+  const amount = parseFloat($("amount").value), date = $("date").value;
   const pend = $("tpend").checked, cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
+  const soins = !cred && category === "Soins", care = soins ? $("careType").value : "", forWho = soins ? careFor : "";
+  const label = $("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : "");
+  if (soins && (!care || !forWho)) return;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;
-  const isMed = !cred && category === MED, refAmt = parseFloat($("refAmt").value) || amount, refDue = $("refDate").value || addDays(today, 10), mutId = isMed ? $("refMut").value : "";
+  const isMed = !cred && category === MED, rule = soins ? ruleFor(care, forWho) : null, refRaw = parseFloat($("refAmt").value);
+  const refAmt = soins ? (refRaw || 0) : (refRaw || amount), hasRef = isMed || (soins && !!rule && refAmt > 0);
+  const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : {};
   if (wEditId) {
-    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "", mutId });
+    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: hasRef ? refAmt : 0, refundDue: hasRef ? refDue : "", mutId, ...extra });
     closeTx(); return;
   }
   if (pend) {
-    await addDoc(collection(db, "pending"), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "", mutId, done: false, by, created: serverTimestamp() });
+    await addDoc(collection(db, "pending"), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: hasRef ? refAmt : 0, refundDue: hasRef ? refDue : "", mutId, ...extra, done: false, by, created: serverTimestamp() });
   } else if (cred) {
     await addDoc(collection(db, "pending"), { type: "in", label, amount, account, due: date, cat: "", done: true, doneDate: date, by, created: serverTimestamp() });
   } else {
-    await addDoc(collection(db, "expenses"), { label, amount, date, category, account, month: date.slice(0, 7), by, created: serverTimestamp() });
-    if (isMed) await addRefund(label, refAmt, account, refDue, mutId);
+    await addDoc(collection(db, "expenses"), { label, amount, date, category, account, month: date.slice(0, 7), by, created: serverTimestamp(), ...extra, mutId });
+    if (hasRef) await addRefund(label, refAmt, account, refDue, mutId);
   }
   closeTx();
   if (!pend && date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
@@ -1589,7 +1648,7 @@ function barsHtml(items, color) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Dépenses des 6 derniers mois">${g}</svg>`;
 }
 function openAcct(name) {
-  acctName = name;
+  acctName = name; if (BENEF.includes(name)) $("mWho").value = name;
   document.querySelectorAll("nav button").forEach(x => x.classList.remove("on"));
   show("tabAcct"); renderAcctPage(); window.scrollTo(0, 0);
 }
@@ -1602,13 +1661,13 @@ function mutUsage(it, year) {
     if (w.done) { if ((w.doneDate || "").slice(0, 4) === year) got += w.amount || 0; }
     else if ((w.due || today).slice(0, 4) === year) pend += w.amount || 0;
   });
-  return { got, pend, left: Math.max(0, it.yearly - got - pend) };
+  return { got, pend, left: it.yearly > 0 ? Math.max(0, it.yearly - got - pend) : Infinity };
 }
 function fillRefMut() {
   const sel = $("refMut"), acc = $("account").value, cur = sel.value, year = ($("date").value || today).slice(0, 4);
   const items = mutItems.filter(i => i.person === acc);
   sel.hidden = !items.length;
-  sel.innerHTML = '<option value="">Poste de mutuelle (facultatif)</option>' + items.map(i => `<option value="${esc(i.id)}">${esc(i.label)} (reste possible ${eur0(mutUsage(i, year).left)})</option>`).join("");
+  sel.innerHTML = '<option value="">Poste de mutuelle (facultatif)</option>' + items.map(i => `<option value="${esc(i.id)}">${esc(i.label)} (reste possible ${fmtLeft(mutUsage(i, year).left)})</option>`).join("");
   if (items.some(i => i.id === cur)) sel.value = cur;
 }
 $("refMut").onchange = () => {
@@ -1617,10 +1676,11 @@ $("refMut").onchange = () => {
   $("refAmt").value = Math.round(Math.max(0, Math.min(it.unit > 0 ? it.unit : amt, left)) * 100) / 100;
 };
 function openTxPreset(person, itemId) {
+  const it = mutItems.find(i => i.id === itemId); if (!it) return;
   resetAddForm();
-  $("ttype").value = "exp"; $("category").value = MED; txUpdate();
+  $("ttype").value = "exp"; $("category").value = "Soins"; careFor = it.person; txUpdate();
+  $("careType").value = it.label; txUpdate();
   $("account").value = person; txUpdate();
-  $("refMut").value = itemId; $("refMut").onchange();
   $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
 }
 function renderMut() {
@@ -1629,32 +1689,36 @@ function renderMut() {
   sec.hidden = false;
   const year = $("month").value.slice(0, 4); $("acMutYear").textContent = year;
   const list = $("acMutList"); list.innerHTML = "";
-  const items = mutItems.filter(i => i.person === acctName).sort((a, b) => (a.label || "").localeCompare(b.label || ""));
-  if (!items.length) list.innerHTML = '<div class="mute">Aucun poste. Ajoutez par exemple « Lentilles : 170 €/an » ou « Kiné : 90 €/an (30 € par séance) ».</div>';
+  const items = mutItems.slice().sort((a, b) => BENEF.indexOf(a.person) - BENEF.indexOf(b.person) || (a.label || "").localeCompare(b.label || ""));
+  if (!items.length) list.innerHTML = '<div class="mute">Aucune règle. Ajoutez par exemple « Julien · Ostéopathe : max 30 € par séance » ou « Marie · Pharmacie : 65 % ».</div>';
   items.forEach(it => {
-    const u = mutUsage(it, year), used = u.got + u.pend, over = used > it.yearly + 0.001;
+    const u = mutUsage(it, year), used = u.got + u.pend, cap = it.yearly > 0, over = cap && used > it.yearly + 0.001;
     const box = document.createElement("div"); box.style.cssText = "border-top:1px solid var(--line);padding:10px 0";
-    box.innerHTML = "<div class='cat' style='padding:0'><b></b><b style='font-weight:400'></b></div><div class='bar' style='display:flex'><i></i><i></i></div><div class='mute' style='font-size:.85rem'></div><div class='mute' style='font-size:.85rem'></div><div class='row' style='margin-top:8px'></div>";
-    box.children[0].children[0].textContent = it.label;
-    box.children[0].children[1].textContent = `${eur0(used)} / ${eur0(it.yearly)}`;
-    const [g, p] = box.children[1].children, gw = Math.min(100, u.got / it.yearly * 100);
-    g.style.width = gw + "%"; g.style.background = over ? "var(--bad)" : "var(--ok)";
-    p.style.width = Math.max(0, Math.min(100 - gw, u.pend / it.yearly * 100)) + "%"; p.style.background = "var(--warn)";
-    box.children[2].textContent = `Remboursé : ${eur0(u.got)} · en cours : ${eur0(u.pend)} · reste possible : ${eur0(u.left)}`;
-    if (it.unit > 0) { const max = Math.floor(it.yearly / it.unit + 1e-9); box.children[3].textContent = `Séances : ${Math.min(max, Math.round(used / it.unit))} / ${max} (${eur0(it.unit)} par séance)`; } else box.children[3].hidden = true;
-    const row = box.children[4], btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; row.append(b); };
+    box.innerHTML = "<div class='cat' style='padding:0'><b></b><b style='font-weight:400'></b></div><div class='mute' style='font-size:.85rem'></div><div class='bar' style='display:flex'><i></i><i></i></div><div class='mute' style='font-size:.85rem'></div><div class='mute' style='font-size:.85rem'></div><div class='row' style='margin-top:8px'></div>";
+    box.children[0].children[0].textContent = `${it.label} · ${it.person}`;
+    box.children[0].children[1].textContent = cap ? `${eur0(used)} / ${eur0(it.yearly)}` : eur0(used);
+    box.children[1].textContent = "Règle : " + ruleText(it);
+    if (cap) {
+      const [g, p] = box.children[2].children, gw = Math.min(100, u.got / it.yearly * 100);
+      g.style.width = gw + "%"; g.style.background = over ? "var(--bad)" : "var(--ok)";
+      p.style.width = Math.max(0, Math.min(100 - gw, u.pend / it.yearly * 100)) + "%"; p.style.background = "var(--warn)";
+    } else box.children[2].hidden = true;
+    box.children[3].textContent = `Remboursé : ${eur0(u.got)} · en cours : ${eur0(u.pend)} · reste possible : ${fmtLeft(u.left)}`;
+    if (it.unit > 0 && cap) { const max = Math.floor(it.yearly / it.unit + 1e-9); box.children[4].textContent = `Séances : ${Math.min(max, Math.round(used / it.unit))} / ${max}`; } else box.children[4].hidden = true;
+    const row = box.children[5], btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; row.append(b); };
     btn("＋ Dépense", () => openTxPreset(acctName, it.id));
-    btn("Modifier", () => { mEditId = it.id; $("mLabel").value = it.label; $("mYear").value = it.yearly; $("mUnit").value = it.unit || ""; $("mBtn").textContent = "Enregistrer"; $("mCancel").hidden = false; $("acMut").querySelector("details").open = true; $("mLabel").focus(); }, true);
-    btn("Supprimer", () => confirm("Supprimer le poste « " + it.label + " » ? Les remboursements déjà saisis restent dans vos transactions.") && deleteDoc(doc(db, "mutuelle", it.id)), true);
+    btn("Modifier", () => { mEditId = it.id; $("mWho").value = it.person; $("mLabel").value = it.label; $("mRate").value = it.rate || ""; $("mUnit").value = it.unit || ""; $("mYear").value = it.yearly || ""; $("mBtn").textContent = "Enregistrer"; $("mCancel").hidden = false; $("acMut").querySelector("details").open = true; $("mLabel").focus(); }, true);
+    btn("Supprimer", () => confirm("Supprimer la règle « " + it.label + " · " + it.person + " » ? Les remboursements déjà saisis restent dans vos transactions.") && deleteDoc(doc(db, "mutuelle", it.id)), true);
     list.append(box);
   });
 }
-function resetMutForm() { mEditId = null; $("mLabel").value = ""; $("mYear").value = ""; $("mUnit").value = ""; $("mBtn").textContent = "Ajouter"; $("mCancel").hidden = true; }
+function resetMutForm() { mEditId = null; $("mLabel").value = ""; $("mRate").value = ""; $("mUnit").value = ""; $("mYear").value = ""; $("mBtn").textContent = "Ajouter"; $("mCancel").hidden = true; }
 $("mCancel").onclick = resetMutForm;
 $("mBtn").onclick = async () => {
-  const label = $("mLabel").value.trim(), yearly = parseFloat($("mYear").value), unit = parseFloat($("mUnit").value) || 0;
-  if (!label || !(yearly > 0) || !acctName || acctName === "Commun") return;
-  const data = { person: acctName, label, yearly, unit };
+  const label = $("mLabel").value.trim(), person = $("mWho").value;
+  const yearly = parseFloat($("mYear").value) || 0, unit = parseFloat($("mUnit").value) || 0, rate = Math.min(100, parseFloat($("mRate").value) || 0);
+  if (!label || !person || !(yearly > 0 || unit > 0 || rate > 0)) return;
+  const data = { person, label, yearly, unit, rate };
   if (mEditId) await updateDoc(doc(db, "mutuelle", mEditId), data);
   else await addDoc(collection(db, "mutuelle"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });
   resetMutForm();

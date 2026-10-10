@@ -120,13 +120,16 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       </div>
       <section id="balBox">
         <div class="cat" style="padding:0"><b>⚖️ Équilibre des budgets</b></div>
-        <div style="position:relative;height:16px;border-radius:8px;background:var(--line);margin:12px 0 4px;overflow:hidden">
+        <div style="position:relative;height:28px;border-radius:10px;background:var(--line);margin:12px 0 4px;overflow:hidden">
           <i id="balFill" style="position:absolute;top:0;bottom:0;left:50%;width:0"></i>
           <i style="position:absolute;left:calc(50% - 1px);top:0;bottom:0;width:2px;background:var(--ink);opacity:.45"></i>
+          <span id="balVal" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:700;color:var(--ink);text-shadow:0 0 4px var(--card),0 0 4px var(--card)"></span>
         </div>
         <div class="cat" style="padding:0;font-size:.8rem"><span style="color:var(--bleu-b)">◀ Julien</span><span class="mute">équilibre</span><span style="color:var(--rose-b)">Marie ▶</span></div>
         <div id="balTxt" style="font-size:1.15rem;font-weight:700;margin-top:8px"></div>
         <div id="balSub" class="mute" style="font-size:.85rem"></div>
+        <div id="balSub2" class="mute" style="font-size:.8rem"></div>
+        <button class="ghost" id="balSettle" hidden style="margin-top:8px"></button>
         <details style="margin-top:8px;font-size:.9rem"><summary class="mute">Voir le détail des budgets</summary>
           <select id="balMode" aria-label="Mode de partage" style="width:100%;margin:8px 0"><option value="salary">Partage au prorata des salaires</option><option value="half">Partage moitié-moitié</option></select>
           <div id="balDet"></div>
@@ -527,6 +530,10 @@ function listen() {
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit(); renderWait();
+  }));
+  unsubs.push(snap(collection(db, "settlements"), s => {
+    settles = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderBalance($("month").value);
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1559,44 +1566,56 @@ const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month")
 $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
-let balMode = "salary";
+let balMode = "salary", settles = [];
 function salPair(m) {
   const d = salaries[m], real = d && d.p && d.p.some(x => x.a > 0) ? d.p : null, ix = jmIdx();
   if (real) return { Julien: (real[ix.j] || {}).a || 0, Marie: (real[ix.m] || {}).a || 0 };
   const av = salAvg(m);
   return av ? { Julien: av.a[ix.j] || 0, Marie: av.a[ix.m] || 0 } : null;
 }
-function renderBalance(m) {
-  const isShared = e => (e.planId || e.category === "Jow" || e.category === "Courses" || estimates[e.category]) && (e.account === "Julien" || e.account === "Marie");
-  const list = expenses.filter(isShared), sum = l => l.reduce((t, e) => t + e.amount, 0);
+const isSharedExp = e => (e.planId || e.category === "Jow" || e.category === "Courses" || estimates[e.category]) && (e.account === "Julien" || e.account === "Marie");
+function monthDiff(x) {
+  const list = histExp.filter(e => e.month === x && isSharedExp(e)), sum = l => l.reduce((t, e) => t + e.amount, 0);
   const pJ = sum(list.filter(e => e.account === "Julien")), pM = sum(list.filter(e => e.account === "Marie")), tot = pJ + pM;
-  const sp = salPair(m), sal = sp ? sp.Julien + sp.Marie : 0;
+  const sp = salPair(x), sal = sp ? sp.Julien + sp.Marie : 0;
   const sJ = balMode === "salary" && sal > 0 ? sp.Julien / sal : 0.5;
-  const diff = pJ - tot * sJ;
-  const fill = $("balFill"), pct = tot > 0 ? Math.max(-1, Math.min(1, diff / Math.max(tot * 0.5, 1))) : 0;
-  if (pct > 0) { fill.style.cssText = `position:absolute;top:0;bottom:0;left:${50 - pct * 50}%;width:${pct * 50}%;background:var(--bleu-b)`; }
-  else { fill.style.cssText = `position:absolute;top:0;bottom:0;left:50%;width:${-pct * 50}%;background:var(--rose-b)`; }
-  const T = $("balTxt");
-  if (!(tot > 0)) { T.textContent = "Aucun budget payé par Julien ou Marie ce mois-ci"; T.style.color = "var(--mute)"; }
-  else if (Math.abs(diff) < 0.5) { T.textContent = "Budgets équilibrés"; T.style.color = "var(--ok)"; }
-  else {
-    const A = diff > 0 ? "Julien" : "Marie", B = diff > 0 ? "Marie" : "Julien";
-    T.textContent = `${A} a ${eur0(Math.abs(diff))} d'avance sur ${B}`;
-    T.style.color = diff > 0 ? "var(--bleu-b)" : "var(--rose-b)";
-  }
-  $("balSub").textContent = tot > 0 ? `${diff > 0 ? "Marie" : "Julien"} doit ${eur0(Math.abs(diff))} à ${diff > 0 ? "Julien" : "Marie"} pour équilibrer · payé : Julien ${eur0(pJ)} · Marie ${eur0(pM)} · part de Julien ${Math.round(sJ * 100)} %` : "";
-  if (Math.abs(diff) < 0.5) $("balSub").textContent = tot > 0 ? `Payé : Julien ${eur0(pJ)} · Marie ${eur0(pM)} · part de Julien ${Math.round(sJ * 100)} %` : "";
-  // détail par budget
+  return { list, pJ, pM, tot, sJ, diff: pJ - tot * sJ };
+}
+function renderBalance(m) {
+  if (!m) return;
+  const months = histExp.filter(isSharedExp).map(e => e.month).concat(settles.map(x => x.month)).filter(x => x <= m).sort();
+  let carry = 0, totAll = 0;
+  if (months.length) for (let x = months[0], i = 0; x < m && i < 240; x = nmo(x, 1), i++) { const d = monthDiff(x); carry += d.diff; totAll += d.tot; }
+  const cur = monthDiff(m); totAll += cur.tot;
+  let bal = carry + cur.diff;
+  settles.filter(x => x.month <= m).forEach(x => { bal += x.to === "Marie" ? x.amount : -x.amount; });
+  const fill = $("balFill"), pct = Math.max(-1, Math.min(1, bal / Math.max(totAll * 0.5, 100)));
+  if (pct > 0) fill.style.cssText = `position:absolute;top:0;bottom:0;left:${50 - pct * 50}%;width:${pct * 50}%;background:var(--bleu-b)`;
+  else fill.style.cssText = `position:absolute;top:0;bottom:0;left:50%;width:${-pct * 50}%;background:var(--rose-b)`;
+  const adv = v => v > 0.5 ? "Julien +" + eur0(v) : v < -0.5 ? "Marie +" + eur0(-v) : "0 €";
+  const T = $("balTxt"), equal = Math.abs(bal) < 0.5, A = bal > 0 ? "Julien" : "Marie", B = bal > 0 ? "Marie" : "Julien";
+  $("balVal").textContent = equal ? "0 €" : (bal > 0 ? "◀ " + eur0(bal) : eur0(-bal) + " ▶");
+  if (equal) { T.textContent = totAll > 0 || settles.length ? "Budgets équilibrés" : "Aucun budget payé par Julien ou Marie pour l'instant"; T.style.color = totAll > 0 || settles.length ? "var(--ok)" : "var(--mute)"; }
+  else { T.textContent = `${A} a ${eur0(Math.abs(bal))} d'avance sur ${B}`; T.style.color = bal > 0 ? "var(--bleu-b)" : "var(--rose-b)"; }
+  $("balSub").textContent = equal ? "" : `${B} doit ${eur0(Math.abs(bal))} à ${A} pour équilibrer`;
+  $("balSub2").textContent = `Report des mois précédents : ${adv(bal - cur.diff)} · ce mois-ci : ${adv(cur.diff)} · payé ce mois-ci : Julien ${eur0(cur.pJ)}, Marie ${eur0(cur.pM)} · part de Julien ${Math.round(cur.sJ * 100)} %`;
+  const bt = $("balSettle");
+  bt.hidden = equal || m !== today.slice(0, 7);
+  bt.textContent = `✓ ${B} a remboursé ${A} (${eur0(Math.abs(bal))})`;
+  bt.onclick = async () => {
+    if (!confirm(`Enregistrer que ${B} a remboursé ${Math.abs(bal).toFixed(2).replace(".", ",")} € à ${A} ? Le solde repart alors de zéro.`)) return;
+    await addDoc(collection(db, "settlements"), { from: B, to: A, amount: Math.round(Math.abs(bal) * 100) / 100, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp() });
+  };
   const det = $("balDet"); det.innerHTML = "";
   const groups = {};
-  list.forEach(e => { const k = e.planId ? "Dépenses prévues" : e.category; (groups[k] = groups[k] || { J: 0, M: 0 })[e.account === "Julien" ? "J" : "M"] += e.amount; });
+  cur.list.forEach(e => { const k = e.planId ? "Dépenses prévues" : e.category; (groups[k] = groups[k] || { J: 0, M: 0 })[e.account === "Julien" ? "J" : "M"] += e.amount; });
   Object.keys(groups).sort().forEach(k => {
     const g = groups[k], spent = g.J + g.M, budget = k === "Jow" ? foodBudgetFor(m) : (estimates[k] ? estAmt(k) : 0);
     const label = `${k} (Julien ${eur0(g.J)} · Marie ${eur0(g.M)})`;
     if (budget > 0) det.append(miniGauge(label, spent, budget));
     else { const d = document.createElement("div"); d.className = "cat"; d.style.fontSize = ".85rem"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = label; d.children[1].textContent = eur0(spent); d.children[1].style.fontWeight = 400; det.append(d); }
   });
-  if (!Object.keys(groups).length) det.innerHTML = '<div class="mute">Aucune dépense de Jow, de courses, de budget estimé ou prévu sur un compte personnel.</div>';
+  if (!Object.keys(groups).length) det.innerHTML = '<div class="mute">Aucune dépense de Jow, de courses, de budget estimé ou prévu sur un compte personnel ce mois-ci.</div>';
   $("balMode").value = balMode;
 }
 $("balMode").onchange = () => { balMode = $("balMode").value; renderBalance($("month").value); };

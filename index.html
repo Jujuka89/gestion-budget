@@ -561,7 +561,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "settings"), s => {
     flags = {}; s.docs.forEach(d => { if (d.id === "flags") flags = d.data(); });
-    maybeSeedJow();
+    maybeSeedJow(); renderEst();
   }));
   unsubs.push(snap(collection(db, "settlements"), s => {
     settles = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1137,6 +1137,7 @@ function estRow(z, cat, en) {
   const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "8px";
   if (en) row.append(btn("Modifier", () => { estEditId = en.id; $("estZone").value = z === "À classer" ? "Julien" : z; $("estCat").value = cat; $("estMode").value = en.mode === "auto" ? "auto" : "manual"; $("estAmt").value = estAmt(en); syncEstMode(); window.scrollTo(0, 0); }, true));
   if (avg > 0 && z !== "À classer" && !(en && en.mode === "auto")) row.append(btn(en ? "Passer à la moyenne" : "Estimer à la moyenne", () => saveEst(z, cat, "auto", Math.round(avg), en && en.id), !!en));
+  if (!en) row.append(btn("Masquer", () => hideSugg(z, cat), true));
   if (en) row.append(btn("Supprimer", () => confirm("Supprimer l'estimation « " + cat + " » (" + z + ") ?") && deleteDoc(doc(db, "estimates", en.id)), true));
   if (row.children.length) li.append(row);
   return li;
@@ -1147,11 +1148,12 @@ function renderEst() {
   $("estTotal").textContent = eur0(entries.reduce((t, en) => t + estAmt(en), 0)) + " / mois";
   const zones = ZONES.concat(entries.some(e => e.zone === "À classer") ? ["À classer"] : []);
   const tint = { Commun: "blanc", Marie: "rose", Julien: "bleu", "À classer": "blanc" };
+  const hidden = (flags && flags.hiddenSugg) || [];
   const box = $("estZones"); box.innerHTML = ""; let any = false;
   zones.forEach(z => {
     const mine = entries.filter(e => e.zone === z).sort((a, b) => estAmt(b) - estAmt(a));
     const pool = z === "Commun" ? COMMON_CATS : isPerson(z) ? PERSONAL_CATS : [];
-    const sugg = pool.filter(c => !mine.some(e => e.category === c) && avgOf(z, c) > 0).sort((a, b) => avgOf(z, b) - avgOf(z, a));
+    const sugg = pool.filter(c => !mine.some(e => e.category === c) && avgOf(z, c) > 0 && !hidden.includes(z + "|" + c)).sort((a, b) => avgOf(z, b) - avgOf(z, a));
     if (!mine.length && !sugg.length && z !== "Commun" && !isPerson(z)) return;
     any = any || mine.length > 0 || sugg.length > 0;
     const sec = document.createElement("section");
@@ -1168,8 +1170,15 @@ function renderEst() {
     if (!mine.length && !sugg.length) { const li = document.createElement("li"); li.className = "mute"; li.textContent = "Aucune estimation dans cette zone."; ul.append(li); }
     sec.append(ul); box.append(sec);
   });
+  if (hidden.length) {
+    const b = document.createElement("button"); b.className = "ghost"; b.style.marginTop = "12px";
+    b.textContent = `Réafficher les suggestions masquées (${hidden.length})`;
+    b.onclick = () => setDoc(doc(db, "settings", "flags"), { hiddenSugg: [] }, { merge: true });
+    box.append(b);
+  }
   $("estEmpty").hidden = any;
 }
+const hideSugg = (z, c) => setDoc(doc(db, "settings", "flags"), { hiddenSugg: [...new Set([...((flags && flags.hiddenSugg) || []), z + "|" + c])] }, { merge: true });
 
 function syncEstMode() { $("estAmt").hidden = $("estMode").value === "auto"; }
 $("estMode").onchange = syncEstMode;

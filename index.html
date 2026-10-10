@@ -205,7 +205,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <input id="famount" type="number" step="0.01" min="0" placeholder="Montant (€)">
         <select id="fcategory">
           <option>Maison / Charges</option><option>Prêt</option><option>Abonnements</option>
-          <option>Assurances / Santé</option><option>Animaux</option><option>Transport</option><option>Enfants</option><option>Autre</option>
+          <option>Assurances / Santé</option><option>Animaux</option><option>Enfants</option><option>Autre</option>
         </select>
         <select id="faccount" aria-label="Compte de prélèvement">
           <option value="Julien">Prélevé sur Julien</option><option value="Marie">Prélevé sur Marie</option><option value="Commun" selected>Prélevé sur Commun</option>
@@ -365,7 +365,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <h2>Estimer une catégorie</h2>
       <div class="row">
         <select id="estZone" aria-label="Zone (compte)"><option>Commun</option><option>Marie</option><option>Julien</option></select>
-        <select id="estCat" aria-label="Catégorie"><option>Jow</option><option>Enfants</option><option>Travaux</option><option>Fast Food</option><option>Boulangerie</option><option>Animaux</option><option>Imprévus</option><option>Santé</option><option>Carburant</option><option>Loisirs</option><option>Cigarette</option><option>Jeux</option><option>Transport</option><option>Autre</option></select>
+        <select id="estCat" aria-label="Catégorie"><option>Jow</option><option>Enfants</option><option>Travaux</option><option>Fast Food</option><option>Boulangerie</option><option>Animaux</option><option>Imprévus</option><option>Santé</option><option>Carburant</option><option>Loisirs</option><option>Cigarette</option><option>Jeux</option><option>Autre</option></select>
         <select id="estMode" aria-label="Mode de calcul"><option value="manual">Valeur saisie par moi</option><option value="auto">Moyenne depuis toujours</option></select>
         <input id="estAmt" type="number" step="1" min="0" placeholder="Budget estimé / mois (€)">
         <button id="btnEst">Enregistrer</button>
@@ -449,7 +449,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="mute" style="font-size:.85rem">Catégorie</div>
     <select id="category" style="width:100%"><option value="" selected disabled>Choisir une catégorie…</option>
         <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
-        <option>Transport</option><option>Santé</option><option>Médecin (remboursé)</option><option>Loisirs</option>
+        <option>Santé</option><option>Médecin (remboursé)</option><option>Loisirs</option>
         <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Jeux</option><option>Animaux</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
       </select>
   </div>
@@ -605,7 +605,7 @@ function listen() {
     render(); renderSplit();
   }));
   unsubs.push(snap(collection(db, "recurring"), s => {
-    fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé" })[o.category] || o.category; return o; });
+    fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé", Transport: "Autre" })[o.category] || o.category; return o; });
     render(); renderSplit();
   }));
   unsubs.push(snap(query(collection(db, "expenses"), where("month", "==", m)), s => {
@@ -1077,7 +1077,7 @@ $("btnPlan").onclick = async () => {
 
 const ZONES = ["Commun", "Marie", "Julien"];
 const COMMON_CATS = ["Jow", "Enfants", "Travaux", "Fast Food", "Boulangerie", "Animaux", "Imprévus", "Santé", "Autre"];
-const PERSONAL_CATS = ["Carburant", "Loisirs", "Cigarette", "Jeux", "Transport"];
+const PERSONAL_CATS = ["Carburant", "Loisirs", "Cigarette", "Jeux"];
 const estId = (zone, cat) => zone + "|" + cat;
 const estEntries = () => Object.entries(estimates).map(([id, v]) => {
   const category = v.category || id;

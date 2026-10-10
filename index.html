@@ -441,6 +441,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   <label style="display:flex;gap:8px;align-items:center;margin:14px 0 10px"><input id="valAll" type="checkbox" checked style="width:auto"> La totalité (<span id="valFull"></span>)</label>
   <input id="valAmt" type="number" step="0.01" min="0" style="width:100%" placeholder="Montant exact (€)" disabled>
   <label class="mute" style="display:block;margin-top:12px">Compte concerné<select id="valAcc" style="width:100%;margin-top:2px"><option>Julien</option><option>Marie</option><option>Commun</option></select></label>
+  <div id="valRef" class="mute" hidden style="margin-top:12px;font-size:.85rem"></div>
   <div class="row" style="margin-top:14px"><button id="valOk">Valider</button><button class="ghost" id="valCancel">Annuler</button></div>
 </dialog>
 
@@ -1299,8 +1300,10 @@ const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; 
 
 async function validateWait(w, exact = w.amount, acc = w.account || "Commun") {
   if (w.type === "pay") {
-    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, care: w.care || "", forWho: w.forWho || "" });
-    if (w.refund > 0) await addRefund(w.label, w.refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
+    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, mutId: w.mutId || "", care: w.care || "", forWho: w.forWho || "" });
+    const rit = w.mutId ? mutItems.find(i => i.id === w.mutId) : null;
+    const refund = rit ? calcRefund(rit, exact, today.slice(0, 4)) : (w.refund || 0);
+    if (refund > 0) await addRefund(w.label, refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
   }
   await updateDoc(doc(db, "pending", w.id), { done: true, doneDate: today, amount: exact, expected: w.amount, account: acc });
 }
@@ -1312,6 +1315,15 @@ function askValidate(w) {
   $("valAll").checked = true; $("valFull").textContent = eur(w.amount);
   $("valAmt").value = ""; $("valAmt").disabled = true; $("valAcc").value = w.account || "Commun";
   $("valAmt").placeholder = isIn ? "Montant exact reçu (€)" : "Montant exact débité (€)";
+  valUpd = () => {
+    const it = w.type === "pay" && w.mutId ? mutItems.find(i => i.id === w.mutId) : null;
+    if (!it) { $("valRef").hidden = true; return; }
+    const ex = $("valAll").checked ? w.amount : (parseFloat($("valAmt").value) || 0);
+    const r = calcRefund(it, ex, today.slice(0, 4));
+    $("valRef").hidden = false;
+    $("valRef").textContent = r > 0 ? `Remboursement mutuelle prévu : +${eur(r)} (une ligne sera ajoutée en attente)` : "Plafond de remboursement de l'année atteint : aucun remboursement attendu.";
+  };
+  valUpd();
   $("valOk").onclick = async () => {
     const exact = $("valAll").checked ? w.amount : parseFloat($("valAmt").value);
     if (!(exact >= 0)) { $("valAmt").focus(); return; }
@@ -1319,11 +1331,19 @@ function askValidate(w) {
   };
   if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
 }
-$("valAll").onchange = () => { $("valAmt").disabled = $("valAll").checked; if (!$("valAll").checked) $("valAmt").focus(); };
+let valUpd = () => {};
+$("valAll").onchange = () => { $("valAmt").disabled = $("valAll").checked; if (!$("valAll").checked) $("valAmt").focus(); valUpd(); };
+$("valAmt").oninput = () => valUpd();
 $("valAmt").onkeydown = e => { if (e.key === "Enter") $("valOk").click(); };
 $("valCancel").onclick = () => $("valDlg").close();
 
 let waitAll = false;
+function refundInfo(w) {
+  if (w.type === "in" || w.done || !w.mutId) return "";
+  const it = mutItems.find(i => i.id === w.mutId); if (!it) return "";
+  const r = calcRefund(it, w.amount || 0, (w.due || today).slice(0, 4));
+  return r > 0 ? ` · remboursement prévu +${eur(r)}` : " · plafond de remboursement atteint";
+}
 function renderWait() {
   const ul = $("waitList"); ul.innerHTML = "";
   const open = waits.filter(w => !w.done), sum = t => open.filter(w => w.type === t).reduce((a, w) => a + (w.amount || 0), 0);
@@ -1337,6 +1357,8 @@ function renderWait() {
     t.textContent = w.label; m.className = "mute"; m.style.cssText = "font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
     const late = !w.done && w.due && w.due < today;
     m.textContent = (isIn ? "Revenu attendu" : "Paiement à faire") + (!isIn && w.cat ? " · " + w.cat : "") + (w.account ? " · " + w.account : "") + (w.due ? " · " + new Date(w.due).toLocaleDateString("fr-FR") : "") + (late ? " · en retard" : "") + (w.done ? (isIn ? " · reçu" : " · payé") : "");
+    const ri = refundInfo(w);
+    if (ri) { m.textContent += ri; m.style.whiteSpace = "normal"; }
     if (late) m.style.color = "var(--bad)";
     t.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" + (w.done ? ";text-decoration:line-through;color:var(--mute)" : "");
     box.append(t, m);

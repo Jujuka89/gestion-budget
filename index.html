@@ -609,7 +609,7 @@ function render() {
     d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)";
     if (i) d.children[1].style.fontWeight = 400;
     $("sum").append(d);
-    if (i === 5) estEntries().sort((a, b) => estAmt(b) - estAmt(a)).forEach(en => $("sum").append(miniGauge(en.category + (en.zone === "Commun" ? "" : " · " + en.zone), estActual(en), estAmt(en))));
+    if (i === 5) estEntries().filter(en => en.zone === "Commun").sort((a, b) => estAmt(b) - estAmt(a)).forEach(en => $("sum").append(miniGauge(en.category + (en.zone === "Commun" ? "" : " · " + en.zone), estActual(en), estAmt(en))));
   });
 
   curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); if (acctName) renderAcctPage();

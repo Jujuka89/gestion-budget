@@ -266,6 +266,19 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="big" id="acLeft"></div>
       <div id="acInfo" style="margin-top:8px"></div>
     </section>
+    <section id="acMut" hidden>
+      <h2>🩺 Mutuelle · remboursements <span id="acMutYear" class="mute"></span></h2>
+      <div id="acMutList"></div>
+      <details style="margin-top:8px"><summary class="mute">Ajouter / modifier un poste de mutuelle</summary>
+        <div class="row" style="margin-top:8px">
+          <input id="mLabel" placeholder="Poste (ex. lentilles, kiné)">
+          <input id="mYear" type="number" step="1" min="0" placeholder="Remboursement par an (€)">
+          <input id="mUnit" type="number" step="1" min="0" placeholder="€ par séance (facultatif)">
+          <button id="mBtn">Ajouter</button>
+          <button class="ghost" id="mCancel" hidden>Annuler</button>
+        </div>
+      </details>
+    </section>
     <section><h2>Dépenses par catégorie · ce mois-ci</h2><div id="acPie1"></div></section>
     <section><h2>Dépenses par catégorie · 12 derniers mois</h2><div id="acPie2"></div></section>
     <section><h2>Dépenses des 6 derniers mois</h2><div id="acBars"></div></section>
@@ -451,6 +464,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <input id="amount" type="number" step="0.01" min="0" placeholder="Montant (€)" style="width:100%;margin-top:8px">
     <label class="mute" style="display:block;margin-top:8px;font-size:.85rem"><span id="dateLab">Date</span><input id="date" type="date" style="width:100%"></label>
     <div id="refBox" hidden style="margin-top:8px">
+      <select id="refMut" hidden style="width:100%;margin-bottom:8px"></select>
       <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€) — vide = montant total" style="width:100%">
       <label class="mute" style="display:block;margin-top:8px;font-size:.85rem">Vérifier le remboursement le<input id="refDate" type="date" style="width:100%"></label>
     </div>
@@ -552,6 +566,10 @@ function listen() {
   unsubs.push(snap(collection(db, "settlements"), s => {
     settles = s.docs.map(d => ({ id: d.id, ...d.data() }));
     renderBalance($("month").value);
+  }));
+  unsubs.push(snap(collection(db, "mutuelle"), s => {
+    mutItems = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (acctName) renderAcctPage();
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1262,7 +1280,7 @@ const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; 
 async function validateWait(w, exact = w.amount, acc = w.account || "Commun") {
   if (w.type === "pay") {
     await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id });
-    if (w.cat === MED && w.refund > 0) await addRefund(w.label, w.refund, acc, w.refundDue || addDays(today, 10));
+    if (w.cat === MED && w.refund > 0) await addRefund(w.label, w.refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
   }
   await updateDoc(doc(db, "pending", w.id), { done: true, doneDate: today, amount: exact, expected: w.amount, account: acc });
 }
@@ -1328,8 +1346,8 @@ function renderWait() {
 }
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
 const MED = "Médecin (remboursé)";
-async function addRefund(label, amount, account, due) {
-  await addDoc(collection(db, "pending"), { type: "in", label: "Remboursement (" + label + ")", amount, account, due, cat: "", done: false, by: auth.currentUser.email, created: serverTimestamp() });
+async function addRefund(label, amount, account, due, mutId = "") {
+  await addDoc(collection(db, "pending"), { type: "in", label: "Remboursement (" + label + ")", amount, account, due, cat: "", mutId, done: false, by: auth.currentUser.email, created: serverTimestamp() });
 }
 const DEFAULT_OWNER = { Cigarette: "Marie" };
 function allowedAccounts() {
@@ -1361,6 +1379,7 @@ function txUpdate() {
   const med = exp && $("category").value === MED;
   $("refBox").hidden = !med;
   if (med && !$("refDate").value) $("refDate").value = addDays(today, 10);
+  if (med) fillRefMut();
   $("dateLab").textContent = $("tpend").checked ? "Date prévue (facultative)" : "Date";
   $("tHint").textContent = $("tpend").checked
     ? "En attente : prise en compte dans le budget, à valider plus tard dans la liste « En attente »."
@@ -1396,6 +1415,7 @@ function startWaitEdit(w) {
   $("tpend").checked = true; $("tpend").disabled = true;
   $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
   txUpdate();
+  $("refMut").value = w.mutId || "";
   if (w.done) $("tHint").textContent = "Élément déjà validé : la modification ne change pas la dépense déjà enregistrée.";
   $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
 }
@@ -1410,18 +1430,18 @@ $("btnAdd").onclick = async () => {
   const pend = $("tpend").checked, cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;
-  const isMed = !cred && category === MED, refAmt = parseFloat($("refAmt").value) || amount, refDue = $("refDate").value || addDays(today, 10);
+  const isMed = !cred && category === MED, refAmt = parseFloat($("refAmt").value) || amount, refDue = $("refDate").value || addDays(today, 10), mutId = isMed ? $("refMut").value : "";
   if (wEditId) {
-    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "" });
+    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "", mutId });
     closeTx(); return;
   }
   if (pend) {
-    await addDoc(collection(db, "pending"), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "", done: false, by, created: serverTimestamp() });
+    await addDoc(collection(db, "pending"), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "", mutId, done: false, by, created: serverTimestamp() });
   } else if (cred) {
     await addDoc(collection(db, "pending"), { type: "in", label, amount, account, due: date, cat: "", done: true, doneDate: date, by, created: serverTimestamp() });
   } else {
     await addDoc(collection(db, "expenses"), { label, amount, date, category, account, month: date.slice(0, 7), by, created: serverTimestamp() });
-    if (isMed) await addRefund(label, refAmt, account, refDue);
+    if (isMed) await addRefund(label, refAmt, account, refDue, mutId);
   }
   closeTx();
   if (!pend && date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
@@ -1566,7 +1586,73 @@ function openAcct(name) {
 }
 $("btnAcctBack").onclick = () => document.querySelector('nav [data-t="month"]').click();
 
+let mutItems = [], mEditId = null;
+function mutUsage(it, year) {
+  let got = 0, pend = 0;
+  waits.filter(w => w.type === "in" && w.mutId === it.id).forEach(w => {
+    if (w.done) { if ((w.doneDate || "").slice(0, 4) === year) got += w.amount || 0; }
+    else if ((w.due || today).slice(0, 4) === year) pend += w.amount || 0;
+  });
+  return { got, pend, left: Math.max(0, it.yearly - got - pend) };
+}
+function fillRefMut() {
+  const sel = $("refMut"), acc = $("account").value, cur = sel.value, year = ($("date").value || today).slice(0, 4);
+  const items = mutItems.filter(i => i.person === acc);
+  sel.hidden = !items.length;
+  sel.innerHTML = '<option value="">Poste de mutuelle (facultatif)</option>' + items.map(i => `<option value="${esc(i.id)}">${esc(i.label)} (reste possible ${eur0(mutUsage(i, year).left)})</option>`).join("");
+  if (items.some(i => i.id === cur)) sel.value = cur;
+}
+$("refMut").onchange = () => {
+  const it = mutItems.find(i => i.id === $("refMut").value); if (!it) return;
+  const left = mutUsage(it, ($("date").value || today).slice(0, 4)).left, amt = parseFloat($("amount").value) || left;
+  $("refAmt").value = Math.round(Math.max(0, Math.min(it.unit > 0 ? it.unit : amt, left)) * 100) / 100;
+};
+function openTxPreset(person, itemId) {
+  resetAddForm();
+  $("ttype").value = "exp"; $("category").value = MED; txUpdate();
+  $("account").value = person; txUpdate();
+  $("refMut").value = itemId; $("refMut").onchange();
+  $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
+}
+function renderMut() {
+  const sec = $("acMut");
+  if (!acctName || acctName === "Commun") { sec.hidden = true; return; }
+  sec.hidden = false;
+  const year = $("month").value.slice(0, 4); $("acMutYear").textContent = year;
+  const list = $("acMutList"); list.innerHTML = "";
+  const items = mutItems.filter(i => i.person === acctName).sort((a, b) => (a.label || "").localeCompare(b.label || ""));
+  if (!items.length) list.innerHTML = '<div class="mute">Aucun poste. Ajoutez par exemple « Lentilles : 170 €/an » ou « Kiné : 90 €/an (30 € par séance) ».</div>';
+  items.forEach(it => {
+    const u = mutUsage(it, year), used = u.got + u.pend, over = used > it.yearly + 0.001;
+    const box = document.createElement("div"); box.style.cssText = "border-top:1px solid var(--line);padding:10px 0";
+    box.innerHTML = "<div class='cat' style='padding:0'><b></b><b style='font-weight:400'></b></div><div class='bar' style='display:flex'><i></i><i></i></div><div class='mute' style='font-size:.85rem'></div><div class='mute' style='font-size:.85rem'></div><div class='row' style='margin-top:8px'></div>";
+    box.children[0].children[0].textContent = it.label;
+    box.children[0].children[1].textContent = `${eur0(used)} / ${eur0(it.yearly)}`;
+    const [g, p] = box.children[1].children, gw = Math.min(100, u.got / it.yearly * 100);
+    g.style.width = gw + "%"; g.style.background = over ? "var(--bad)" : "var(--ok)";
+    p.style.width = Math.max(0, Math.min(100 - gw, u.pend / it.yearly * 100)) + "%"; p.style.background = "var(--warn)";
+    box.children[2].textContent = `Remboursé : ${eur0(u.got)} · en cours : ${eur0(u.pend)} · reste possible : ${eur0(u.left)}`;
+    if (it.unit > 0) { const max = Math.floor(it.yearly / it.unit + 1e-9); box.children[3].textContent = `Séances : ${Math.min(max, Math.round(used / it.unit))} / ${max} (${eur0(it.unit)} par séance)`; } else box.children[3].hidden = true;
+    const row = box.children[4], btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; row.append(b); };
+    btn("＋ Dépense", () => openTxPreset(acctName, it.id));
+    btn("Modifier", () => { mEditId = it.id; $("mLabel").value = it.label; $("mYear").value = it.yearly; $("mUnit").value = it.unit || ""; $("mBtn").textContent = "Enregistrer"; $("mCancel").hidden = false; $("acMut").querySelector("details").open = true; $("mLabel").focus(); }, true);
+    btn("Supprimer", () => confirm("Supprimer le poste « " + it.label + " » ? Les remboursements déjà saisis restent dans vos transactions.") && deleteDoc(doc(db, "mutuelle", it.id)), true);
+    list.append(box);
+  });
+}
+function resetMutForm() { mEditId = null; $("mLabel").value = ""; $("mYear").value = ""; $("mUnit").value = ""; $("mBtn").textContent = "Ajouter"; $("mCancel").hidden = true; }
+$("mCancel").onclick = resetMutForm;
+$("mBtn").onclick = async () => {
+  const label = $("mLabel").value.trim(), yearly = parseFloat($("mYear").value), unit = parseFloat($("mUnit").value) || 0;
+  if (!label || !(yearly > 0) || !acctName || acctName === "Commun") return;
+  const data = { person: acctName, label, yearly, unit };
+  if (mEditId) await updateDoc(doc(db, "mutuelle", mEditId), data);
+  else await addDoc(collection(db, "mutuelle"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });
+  resetMutForm();
+};
+
 function renderAcctPage() {
+  renderMut();
   const name = acctName, m = $("month").value, r = acctRem(m), info = r && r[name];
   const col = { Julien: "bleu", Marie: "rose", Commun: "blanc" }[name];
   $("acSum").style.cssText = `background:var(--${col});border-left:4px solid var(--${col}-b)`;

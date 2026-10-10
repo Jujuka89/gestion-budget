@@ -158,27 +158,8 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div id="colL">
   <section>
     <h2>Ajouter une transaction</h2>
-    <div class="row">
-      <select id="ttype" aria-label="Type"><option value="exp">Dépense</option><option value="cred">Crédit</option></select>
-      <input id="label" placeholder="Libellé (ex. courses, médecin)">
-      <input id="amount" type="number" step="0.01" min="0" placeholder="Montant (€)">
-      <select id="category">
-        <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
-        <option>Transport</option><option>Santé</option><option>Médecin (remboursé)</option><option>Loisirs</option>
-        <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Jeux</option><option>Animaux</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
-      </select>
-      <select id="account" aria-label="Compte">
-        <option>Julien</option><option>Marie</option><option selected>Commun</option>
-      </select>
-      <input id="date" type="date" aria-label="Date">
-      <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€) — vide = montant total" hidden>
-      <input id="refDate" type="date" aria-label="Vérifier le remboursement le" hidden>
-      <label class="mute" style="display:flex;gap:6px;align-items:center;flex:1 1 100%"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
-      <button id="btnAdd">Ajouter</button>
-      <button class="ghost" id="btnAddCancel" hidden>Annuler</button>
-      <button class="ghost" id="btnAddDel" hidden style="color:var(--bad)">Supprimer</button>
-    </div>
-    <div id="tHint" class="mute" style="margin-top:8px;font-size:.85rem"></div>
+    <button id="btnOpenTx" style="width:100%;font-size:1.05rem;padding:12px">➕ Ajouter une transaction</button>
+    <div class="mute" style="font-size:.8rem;margin-top:6px">Dépense ou crédit, avec l'option « En attente » (médecin, chèque…).</div>
   </section>
 
   <section>
@@ -445,6 +426,42 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   <input id="valAmt" type="number" step="0.01" min="0" style="width:100%" placeholder="Montant exact (€)" disabled>
   <label class="mute" style="display:block;margin-top:12px">Compte concerné<select id="valAcc" style="width:100%;margin-top:2px"><option>Julien</option><option>Marie</option><option>Commun</option></select></label>
   <div class="row" style="margin-top:14px"><button id="valOk">Valider</button><button class="ghost" id="valCancel">Annuler</button></div>
+</dialog>
+
+<dialog id="txDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(94vw,440px);max-height:90vh;overflow:auto">
+  <h2 id="txTitle" style="margin-top:0">Ajouter une transaction</h2>
+  <select id="ttype" hidden><option value="">—</option><option value="exp">Dépense</option><option value="cred">Crédit</option></select>
+  <div class="row"><button id="tDep" class="ghost">Dépense</button><button id="tCred" class="ghost">Crédit</button></div>
+  <div id="txStep2" hidden style="margin-top:12px">
+    <div class="mute" style="font-size:.85rem">Catégorie</div>
+    <select id="category" style="width:100%"><option value="" selected disabled>Choisir une catégorie…</option>
+        <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
+        <option>Transport</option><option>Santé</option><option>Médecin (remboursé)</option><option>Loisirs</option>
+        <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Jeux</option><option>Animaux</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
+      </select>
+  </div>
+  <div id="txStep3" hidden style="margin-top:12px">
+    <div class="mute" style="font-size:.85rem">Compte</div>
+    <select id="account" hidden><option value="">—</option><option>Julien</option><option>Marie</option><option>Commun</option></select>
+    <div class="row" id="accBtns"></div>
+    <div class="mute" id="accNote" style="font-size:.8rem;margin-top:4px"></div>
+  </div>
+  <div id="txStep4" hidden>
+    <input id="label" placeholder="Libellé (ex. courses, médecin)" style="width:100%;margin-top:12px">
+    <input id="amount" type="number" step="0.01" min="0" placeholder="Montant (€)" style="width:100%;margin-top:8px">
+    <label class="mute" style="display:block;margin-top:8px;font-size:.85rem"><span id="dateLab">Date</span><input id="date" type="date" style="width:100%"></label>
+    <div id="refBox" hidden style="margin-top:8px">
+      <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€) — vide = montant total" style="width:100%">
+      <label class="mute" style="display:block;margin-top:8px;font-size:.85rem">Vérifier le remboursement le<input id="refDate" type="date" style="width:100%"></label>
+    </div>
+    <label class="mute" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
+    <div id="tHint" class="mute" style="margin-top:8px;font-size:.8rem"></div>
+  </div>
+  <div class="row" style="margin-top:14px">
+    <button id="btnAdd" hidden>Ajouter</button>
+    <button class="ghost" id="btnAddCancel">Annuler</button>
+    <button class="ghost" id="btnAddDel" hidden style="color:var(--bad)">Supprimer</button>
+  </div>
 </dialog>
 
 </main>
@@ -1314,54 +1331,89 @@ const MED = "Médecin (remboursé)";
 async function addRefund(label, amount, account, due) {
   await addDoc(collection(db, "pending"), { type: "in", label: "Remboursement (" + label + ")", amount, account, due, cat: "", done: false, by: auth.currentUser.email, created: serverTimestamp() });
 }
-function syncT() {
-  const cred = $("ttype").value === "cred", med = !cred && $("category").value === MED;
-  $("category").hidden = cred;
-  $("refAmt").hidden = !med; $("refDate").hidden = !med;
-  if (med && !$("refDate").value) $("refDate").value = addDays(today, 10);
-  $("tHint").textContent = $("tpend").checked
-    ? "En attente : la date est la date prévue (facultative). Prise en compte dans le budget, à valider plus tard dans la liste « En attente »."
-    : (cred ? "Crédit enregistré tout de suite à la date choisie." : "Dépense enregistrée tout de suite à la date choisie.");
-  if (med) $("tHint").textContent += " Une ligne « Remboursement » sera ajoutée en attente : indiquez le montant attendu et la date à laquelle vous voulez le vérifier.";
+const DEFAULT_OWNER = { Cigarette: "Marie" };
+function allowedAccounts() {
+  if ($("ttype").value !== "exp") return ["Julien", "Marie", "Commun"];
+  const c = $("category").value, o = ownersOf(c);
+  if (o.length) return o;
+  return DEFAULT_OWNER[c] ? [DEFAULT_OWNER[c]] : ["Julien", "Marie", "Commun"];
 }
-$("category").onchange = syncT;
-$("ttype").onchange = syncT; $("tpend").onchange = syncT;
+function renderAccBtns() {
+  const box = $("accBtns"), list = allowedAccounts();
+  if (!list.includes($("account").value)) $("account").value = list.length === 1 ? list[0] : "";
+  box.innerHTML = "";
+  list.forEach(a => {
+    const b = document.createElement("button"); b.textContent = a; b.className = $("account").value === a ? "" : "ghost";
+    b.onclick = () => { $("account").value = a; txUpdate(); };
+    box.append(b);
+  });
+  $("accNote").textContent = list.length === 1 ? "Seul choix : compte " + list[0] : "";
+}
+function txUpdate() {
+  const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
+  $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
+  $("txStep2").hidden = !exp;
+  const hasCat = exp && $("category").value !== "";
+  $("txStep3").hidden = !(cred || hasCat);
+  if (!$("txStep3").hidden) renderAccBtns();
+  const hasAcc = !$("txStep3").hidden && $("account").value !== "";
+  $("txStep4").hidden = !hasAcc; $("btnAdd").hidden = !hasAcc;
+  const med = exp && $("category").value === MED;
+  $("refBox").hidden = !med;
+  if (med && !$("refDate").value) $("refDate").value = addDays(today, 10);
+  $("dateLab").textContent = $("tpend").checked ? "Date prévue (facultative)" : "Date";
+  $("tHint").textContent = $("tpend").checked
+    ? "En attente : prise en compte dans le budget, à valider plus tard dans la liste « En attente »."
+    : (cred ? "Crédit enregistré tout de suite à la date choisie." : "Dépense enregistrée tout de suite à la date choisie.");
+  if (med) $("tHint").textContent += " Une ligne « Remboursement » sera ajoutée en attente.";
+}
+$("tDep").onclick = () => { $("ttype").value = "exp"; txUpdate(); };
+$("tCred").onclick = () => { $("ttype").value = "cred"; txUpdate(); };
+$("category").onchange = txUpdate; $("tpend").onchange = txUpdate;
 
 function resetAddForm() {
   wEditId = null;
+  $("ttype").value = ""; $("category").value = ""; $("account").value = "";
   $("label").value = ""; $("amount").value = ""; $("date").value = today;
   $("tpend").checked = false; $("tpend").disabled = false;
-  $("btnAdd").textContent = "Ajouter"; $("btnAddCancel").hidden = true; $("btnAddDel").hidden = true;
   $("refAmt").value = ""; $("refDate").value = "";
-  syncT();
+  $("txTitle").textContent = "Ajouter une transaction"; $("btnAdd").textContent = "Ajouter"; $("btnAddDel").hidden = true;
+  txUpdate();
 }
+function openTx() { resetAddForm(); $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", ""); }
+function closeTx() { resetAddForm(); if ($("txDlg").open) $("txDlg").close(); }
+$("btnOpenTx").onclick = openTx;
+$("btnAddCancel").onclick = closeTx;
+
 function startWaitEdit(w) {
+  resetAddForm();
   wEditId = w.id;
   $("ttype").value = w.type === "in" ? "cred" : "exp";
-  $("label").value = w.label; $("amount").value = w.amount;
-  $("category").value = w.cat || "Autre"; $("account").value = w.account || "Commun"; $("date").value = w.due || "";
+  if (w.type !== "in") $("category").value = w.cat || "Autre";
+  $("account").value = w.account || "Commun";
+  $("label").value = w.label; $("amount").value = w.amount; $("date").value = w.due || "";
   $("refAmt").value = w.refund || ""; $("refDate").value = w.refundDue || "";
   $("tpend").checked = true; $("tpend").disabled = true;
-  $("btnAdd").textContent = "Enregistrer"; $("btnAddCancel").hidden = false; $("btnAddDel").hidden = false;
-  syncT(); if (w.done) $("tHint").textContent = "Élément déjà validé : la modification ne change pas la dépense déjà enregistrée.";
-  $("label").scrollIntoView({ behavior: "smooth", block: "center" }); $("label").focus();
+  $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
+  txUpdate();
+  if (w.done) $("tHint").textContent = "Élément déjà validé : la modification ne change pas la dépense déjà enregistrée.";
+  $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
 }
-$("btnAddCancel").onclick = resetAddForm;
 $("btnAddDel").onclick = async () => {
   const w = waits.find(x => x.id === wEditId); if (!w) return;
   if (!confirm("Supprimer « " + w.label + " » ?" + (w.done && w.type === "pay" ? " La dépense déjà validée reste dans les dépenses du mois." : ""))) return;
-  await deleteDoc(doc(db, "pending", w.id)); resetAddForm();
+  await deleteDoc(doc(db, "pending", w.id)); closeTx();
 };
 
 $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), label = $("label").value.trim(), date = $("date").value;
   const pend = $("tpend").checked, cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
-  if (!label || !(amount > 0) || (!pend && !date)) return;
+  if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;
   const isMed = !cred && category === MED, refAmt = parseFloat($("refAmt").value) || amount, refDue = $("refDate").value || addDays(today, 10);
   if (wEditId) {
     await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "" });
-    resetAddForm(); return;
+    closeTx(); return;
   }
   if (pend) {
     await addDoc(collection(db, "pending"), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: isMed ? refAmt : 0, refundDue: isMed ? refDue : "", done: false, by, created: serverTimestamp() });
@@ -1371,7 +1423,7 @@ $("btnAdd").onclick = async () => {
     await addDoc(collection(db, "expenses"), { label, amount, date, category, account, month: date.slice(0, 7), by, created: serverTimestamp() });
     if (isMed) await addRefund(label, refAmt, account, refDue);
   }
-  resetAddForm();
+  closeTx();
   if (!pend && date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
 };
 resetAddForm();

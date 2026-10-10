@@ -371,7 +371,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <section>
       <h2>Estimer une catégorie</h2>
       <div class="row">
-        <select id="estCat" aria-label="Catégorie"><option>Carburant</option><option>Santé</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Animaux</option><option>Transport</option><option>Loisirs</option><option>Enfants</option><option>Autre</option></select>
+        <select id="estCat" aria-label="Catégorie"><option>Jow</option><option>Carburant</option><option>Santé</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Animaux</option><option>Transport</option><option>Loisirs</option><option>Enfants</option><option>Autre</option></select>
         <select id="estMode" aria-label="Mode de calcul"><option value="manual">Valeur saisie par moi</option><option value="auto">Moyenne depuis toujours</option></select>
         <input id="estAmt" type="number" step="1" min="0" placeholder="Budget estimé / mois (€)">
         <button id="btnEst">Enregistrer</button>
@@ -531,6 +531,10 @@ function listen() {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit(); renderWait();
   }));
+  unsubs.push(snap(collection(db, "settings"), s => {
+    flags = {}; s.docs.forEach(d => { if (d.id === "flags") flags = d.data(); });
+    maybeSeedJow();
+  }));
   unsubs.push(snap(collection(db, "settlements"), s => {
     settles = s.docs.map(d => ({ id: d.id, ...d.data() }));
     renderBalance($("month").value);
@@ -541,6 +545,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "estimates"), s => {
     estimates = {}; s.docs.forEach(d => estimates[d.id] = d.data());
+    estLoaded = true; maybeSeedJow();
     render(); renderSplit();
   }));
   unsubs.push(snap(collection(db, "expenses"), s => {
@@ -589,10 +594,9 @@ function render() {
   const incM = incFixed(m);
   const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incM;
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
-  const jow = expenses.filter(e => e.category === "Jow").reduce((t, e) => t + e.amount, 0);
   const pl = planFor(m), es = estFor(), pd = pendSum(m, "all");
-  const other = spent - fixedTotal - food - jow - pl.actual - es.actual;
-  const jowPlan = Math.max(foodBudgetFor(m), jow), committed = spent - jow + jowPlan + (pl.total - pl.actual) + (es.total - es.actual) + pd.pay - pd.inc;
+  const other = spent - fixedTotal - food - pl.actual - es.actual;
+  const committed = spent + (pl.total - pl.actual) + (es.total - es.actual) + pd.pay - pd.inc;
   const left = sal - committed, pct = sal > 0 ? Math.min(100, committed / sal * 100) : 0;
   const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
   $("left").textContent = sal > 0 ? eur0(left) : "—";
@@ -600,15 +604,14 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Budget alimentaire Jow", jowPlan], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Crédits et revenus ponctuels", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Crédits et revenus ponctuels", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (![0, 1, 2, 3].includes(i) && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
     d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)";
     if (i) d.children[1].style.fontWeight = 400;
     $("sum").append(d);
-    if (i === 4) $("sum").append(miniGauge("Commandes Jow ce mois-ci", jow, jowPlan));
-    if (i === 6) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
+    if (i === 5) Object.keys(estimates).sort((a, b) => estAmt(b) - estAmt(a)).forEach(c => $("sum").append(miniGauge(c, estActual(c), estAmt(c))));
   });
 
   curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); if (acctName) renderAcctPage();
@@ -1040,7 +1043,7 @@ $("btnPlan").onclick = async () => {
   if (was) openPlan(was);
 };
 
-const EST_CATS = ["Carburant", "Santé", "Imprévus", "Fast Food", "Boulangerie", "Cigarette", "Animaux", "Transport", "Loisirs", "Enfants", "Autre"];
+const EST_CATS = ["Jow", "Carburant", "Santé", "Imprévus", "Fast Food", "Boulangerie", "Cigarette", "Animaux", "Transport", "Loisirs", "Enfants", "Autre"];
 const estActual = c => expenses.filter(e => e.category === c && !e.planId).reduce((t, e) => t + e.amount, 0);
 function estFor() {
   let total = 0, actual = 0;
@@ -1132,7 +1135,7 @@ function renderFuture() {
     const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
     const av = real > 0 ? null : salAvg(x);
     const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
-    const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot + pendCost(x);
+    const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + planFor(x).total + estTot + pendCost(x);
     const d = document.createElement("div"); d.className = "fut";
     d.innerHTML = "<div class='mute'></div><b></b><div class='mute' style='font-size:.75rem'></div>";
     d.children[0].textContent = new Date(x + "-01").toLocaleDateString("fr-FR", { month: "long" });
@@ -1160,7 +1163,7 @@ function projRem(x) {
   const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
   if (!(sal > 0)) return null;
   const estTot = Object.keys(estimates).reduce((t, c) => t + estAmt(c), 0);
-  return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + foodBudgetFor(x) + planFor(x).total + estTot + pendCost(x));
+  return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + planFor(x).total + estTot + pendCost(x));
 }
 function giftPlan() {
   const cur = today.slice(0, 7), S = [];
@@ -1524,11 +1527,11 @@ function monthParts(x) {
   const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
   if (!(sal > 0)) return null;
   const sum = l => l.reduce((t, e) => t + e.amount, 0);
-  const E = histExp.filter(e => e.month === x), S = sum(E), jowS = sum(E.filter(e => e.category === "Jow"));
+  const E = histExp.filter(e => e.month === x), S = sum(E);
   const pl = planFor(x), pd = pendSum(x, "all");
   let esT = 0, esA = 0;
   Object.keys(estimates).forEach(c => { const A = sum(E.filter(e => e.category === c && !e.planId)); esT += Math.max(estAmt(c), A); esA += A; });
-  return { sal, fixed: fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0), jow: Math.max(foodBudgetFor(x), jowS), plan: pl.total, est: esT, pend: pd.pay - pd.inc, misc: S - jowS - pl.actual - esA };
+  return { sal, fixed: fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0), jow: 0, plan: pl.total, est: esT, pend: pd.pay - pd.inc, misc: S - pl.actual - esA };
 }
 function renderYear(m) {
   const box = $("yearBox"), yr = m.slice(0, 4);
@@ -1567,6 +1570,15 @@ $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
 let balMode = "salary", settles = [];
+let estLoaded = false, flags = null, seeding = false;
+function maybeSeedJow() {
+  if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
+  seeding = true;
+  const ops = [];
+  if (!estimates.Jow) ops.push(setDoc(doc(db, "estimates", "Jow"), { category: "Jow", mode: "manual", amount: legacyJowBudget(today.slice(0, 7)) }));
+  ops.push(setDoc(doc(db, "settings", "flags"), { jowEstimate: true }, { merge: true }));
+  Promise.all(ops).catch(e => { seeding = false; console.error(e); });
+}
 function salPair(m) {
   const d = salaries[m], real = d && d.p && d.p.some(x => x.a > 0) ? d.p : null, ix = jmIdx();
   if (real) return { Julien: (real[ix.j] || {}).a || 0, Marie: (real[ix.m] || {}).a || 0 };
@@ -1610,7 +1622,7 @@ function renderBalance(m) {
   const groups = {};
   cur.list.forEach(e => { const k = e.planId ? "Dépenses prévues" : e.category; (groups[k] = groups[k] || { J: 0, M: 0 })[e.account === "Julien" ? "J" : "M"] += e.amount; });
   Object.keys(groups).sort().forEach(k => {
-    const g = groups[k], spent = g.J + g.M, budget = k === "Jow" ? foodBudgetFor(m) : (estimates[k] ? estAmt(k) : 0);
+    const g = groups[k], spent = g.J + g.M, budget = estimates[k] ? estAmt(k) : 0;
     const label = `${k} (Julien ${eur0(g.J)} · Marie ${eur0(g.M)})`;
     if (budget > 0) det.append(miniGauge(label, spent, budget));
     else { const d = document.createElement("div"); d.className = "cat"; d.style.fontSize = ".85rem"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = label; d.children[1].textContent = eur0(spent); d.children[1].style.fontWeight = 400; det.append(d); }
@@ -1620,7 +1632,7 @@ function renderBalance(m) {
 }
 $("balMode").onchange = () => { balMode = $("balMode").value; renderBalance($("month").value); };
 
-function foodBudgetFor(m) {
+function legacyJowBudget(m) {
   if (foodB[m] != null) return foodB[m];
   const ks = Object.keys(foodB).filter(k => k < m).sort();
   return ks.length ? foodB[ks[ks.length - 1]] : 450;
@@ -1665,7 +1677,7 @@ function renderSplit() {
   if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   const nt = document.createElement("div"); nt.className = "mute"; nt.style.cssText = "font-size:.8rem;margin-top:6px";
-  nt.textContent = "Le compte commun ne sert qu'aux dépenses fixes. Les autres budgets (Jow, estimés, prévus) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
+  nt.textContent = "Le compte commun ne sert qu'aux dépenses fixes. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
   $("sNeed").append(nt);
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];

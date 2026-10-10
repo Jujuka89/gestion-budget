@@ -456,8 +456,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Jeux</option><option>Animaux</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
       </select>
     <div id="txCare" hidden style="margin-top:10px">
-      <div class="mute" style="font-size:.85rem">Type de soin</div>
-      <select id="careType" style="width:100%"></select>
+      <div id="careTypeBox">
+        <div class="mute" style="font-size:.85rem">Type de soin</div>
+        <select id="careType" style="width:100%"></select>
+      </div>
       <div class="mute" style="font-size:.85rem;margin-top:10px">Pour qui</div>
       <div class="row" id="whoBtns"></div>
     </div>
@@ -675,7 +677,7 @@ function render() {
     if (k === "e") {
       const pp = e.planId && (planned.find(p => p.id === e.planId) || { label: e.planLabel });
       l.children[0].textContent = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
-      l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.care ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+      l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.care && e.care !== e.category ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category + (e.forWho ? " → " + e.forWho : "")}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
     } else {
       l.children[0].textContent = w.label;
       l.children[1].textContent = `${new Date(w.doneDate).toLocaleDateString("fr-FR")} · Revenu reçu${w.account ? " · " + w.account : ""} · ${(w.by || "").split("@")[0]}`;
@@ -1389,7 +1391,7 @@ const BENEF = ["Julien", "Marie", "Kélia", "Milio"];
 const CARE_DEFAULT = ["Ostéopathe", "Médecin", "Pharmacie"];
 let careFor = "", refManual = false;
 const fmtLeft = v => v === Infinity ? "illimité" : eur0(v);
-const careTypes = () => [...new Set([...CARE_DEFAULT, ...mutItems.map(i => i.label).filter(Boolean)])];
+const careTypes = () => [...new Set([...CARE_DEFAULT, ...mutItems.map(i => i.label).filter(l => l && l.toLowerCase() !== "lentilles")])];
 const ruleFor = (care, who) => mutItems.find(i => i.person === who && (i.label || "").toLowerCase() === (care || "").toLowerCase());
 function ruleText(it) {
   const p = [];
@@ -1421,15 +1423,16 @@ function txUpdate() {
   const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
   $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
   $("txStep2").hidden = !exp;
-  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins";
-  $("txCare").hidden = !soins;
-  if (soins) { fillCare(); renderWho(); }
-  const careOk = !soins || ($("careType").value !== "" && careFor !== "");
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent;
+  $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
+  if (flow) { if (soins) fillCare(); renderWho(); }
+  const careOk = !flow || (careFor !== "" && (lent || $("careType").value !== ""));
+  const careName = lent ? "Lentilles" : $("careType").value;
   $("txStep3").hidden = !(cred || (hasCat && careOk));
   if (!$("txStep3").hidden) renderAccBtns();
   const hasAcc = !$("txStep3").hidden && $("account").value !== "";
   $("txStep4").hidden = !hasAcc; $("btnAdd").hidden = !hasAcc;
-  const med = exp && cat === MED, rule = soins && careOk ? ruleFor($("careType").value, careFor) : null;
+  const med = exp && cat === MED, rule = flow && careOk ? ruleFor(careName, careFor) : null;
   $("refBox").hidden = !(med || rule);
   $("refMut").hidden = true;
   if ((med || rule) && !$("refDate").value) $("refDate").value = addDays(today, 10);
@@ -1440,9 +1443,9 @@ function txUpdate() {
     ? "En attente : prise en compte dans le budget, à valider plus tard dans la liste « En attente »."
     : (cred ? "Crédit enregistré tout de suite à la date choisie." : "Dépense enregistrée tout de suite à la date choisie.");
   if (med) $("tHint").textContent += " Une ligne « Remboursement » sera ajoutée en attente.";
-  if (soins && careOk) $("tHint").textContent += rule
+  if (flow && careOk) $("tHint").textContent += rule
     ? ` Mutuelle (${rule.label} · ${rule.person}) : ${ruleText(rule)}. Le remboursement est calculé automatiquement et reste modifiable.`
-    : ` Aucune règle de mutuelle pour ${$("careType").value} · ${careFor} : ajoutez-la dans la page d'un compte, rubrique Mutuelle.`;
+    : ` Aucune règle de mutuelle pour ${careName} · ${careFor} : ajoutez-la dans la page d'un compte, rubrique Mutuelle.`;
 }
 $("tDep").onclick = () => { $("ttype").value = "exp"; txUpdate(); };
 $("tCred").onclick = () => { $("ttype").value = "cred"; txUpdate(); };
@@ -1491,7 +1494,7 @@ $("btnAddDel").onclick = async () => {
 $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), date = $("date").value;
   const pend = $("tpend").checked, cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
-  const soins = !cred && category === "Soins", care = soins ? $("careType").value : "", forWho = soins ? careFor : "";
+  const lent = !cred && category === "Lentilles", soins = (!cred && category === "Soins") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
   const label = $("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : "");
   if (soins && (!care || !forWho)) return;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
@@ -1678,7 +1681,7 @@ $("refMut").onchange = () => {
 function openTxPreset(person, itemId) {
   const it = mutItems.find(i => i.id === itemId); if (!it) return;
   resetAddForm();
-  $("ttype").value = "exp"; $("category").value = "Soins"; careFor = it.person; txUpdate();
+  $("ttype").value = "exp"; $("category").value = (it.label || "").toLowerCase() === "lentilles" ? "Lentilles" : "Soins"; careFor = it.person; txUpdate();
   $("careType").value = it.label; txUpdate();
   $("account").value = person; txUpdate();
   $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");

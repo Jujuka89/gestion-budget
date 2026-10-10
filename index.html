@@ -130,8 +130,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <div id="balSub" class="mute" style="font-size:.85rem"></div>
         <div id="balSub2" class="mute" style="font-size:.8rem"></div>
         <button class="ghost" id="balSettle" hidden style="margin-top:8px"></button>
-        <details style="margin-top:8px;font-size:.9rem"><summary class="mute">Voir le détail des budgets</summary>
-          <select id="balMode" aria-label="Mode de partage" style="width:100%;margin:8px 0"><option value="salary">Partage au prorata des salaires</option><option value="half">Partage moitié-moitié</option></select>
+        <details style="margin-top:8px;font-size:.9rem"><summary class="mute">Voir le détail des budgets (partage moitié-moitié)</summary>
           <div id="balDet"></div>
         </details>
       </section>
@@ -1606,7 +1605,7 @@ const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month")
 $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
-let balMode = "salary", settles = [];
+let settles = [];
 let estLoaded = false, flags = null, seeding = false;
 function maybeSeedJow() {
   if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
@@ -1630,8 +1629,7 @@ const isSharedExp = e => {
 function monthDiff(x) {
   const list = histExp.filter(e => e.month === x && isSharedExp(e)), sum = l => l.reduce((t, e) => t + e.amount, 0);
   const pJ = sum(list.filter(e => e.account === "Julien")), pM = sum(list.filter(e => e.account === "Marie")), tot = pJ + pM;
-  const sp = salPair(x), sal = sp ? sp.Julien + sp.Marie : 0;
-  const sJ = balMode === "salary" && sal > 0 ? sp.Julien / sal : 0.5;
+  const sJ = 0.5;
   return { list, pJ, pM, tot, sJ, diff: pJ - tot * sJ };
 }
 function renderBalance(m) {
@@ -1651,7 +1649,7 @@ function renderBalance(m) {
   if (equal) { T.textContent = totAll > 0 || settles.length ? "Budgets équilibrés" : "Aucun budget payé par Julien ou Marie pour l'instant"; T.style.color = totAll > 0 || settles.length ? "var(--ok)" : "var(--mute)"; }
   else { T.textContent = `${A} a ${eur0(Math.abs(bal))} d'avance sur ${B}`; T.style.color = bal > 0 ? "var(--bleu-b)" : "var(--rose-b)"; }
   $("balSub").textContent = equal ? "" : `${B} doit ${eur0(Math.abs(bal))} à ${A} pour équilibrer`;
-  $("balSub2").textContent = `Report des mois précédents : ${adv(bal - cur.diff)} · ce mois-ci : ${adv(cur.diff)} · payé ce mois-ci : Julien ${eur0(cur.pJ)}, Marie ${eur0(cur.pM)} · part de Julien ${Math.round(cur.sJ * 100)} %`;
+  $("balSub2").textContent = `Report des mois précédents : ${adv(bal - cur.diff)} · ce mois-ci : ${adv(cur.diff)} · payé ce mois-ci : Julien ${eur0(cur.pJ)}, Marie ${eur0(cur.pM)}`;
   const bt = $("balSettle");
   bt.hidden = equal || m !== today.slice(0, 7);
   bt.textContent = `✓ ${B} a remboursé ${A} (${eur0(Math.abs(bal))})`;
@@ -1669,9 +1667,7 @@ function renderBalance(m) {
     else { const d = document.createElement("div"); d.className = "cat"; d.style.fontSize = ".85rem"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = label; d.children[1].textContent = eur0(spent); d.children[1].style.fontWeight = 400; det.append(d); }
   });
   if (!Object.keys(groups).length) det.innerHTML = '<div class="mute">Aucune dépense de Jow, de courses, de budget estimé ou prévu sur un compte personnel ce mois-ci.</div>';
-  $("balMode").value = balMode;
 }
-$("balMode").onchange = () => { balMode = $("balMode").value; renderBalance($("month").value); };
 
 function legacyJowBudget(m) {
   if (foodB[m] != null) return foodB[m];

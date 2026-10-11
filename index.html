@@ -689,7 +689,7 @@ function render() {
     .sort((a, b) => b.date.localeCompare(a.date));
   $("empty").hidden = rows.length > 0;
   $("list").innerHTML = "";
-  rows.forEach(({ k, e, w }) => {
+  (txAll ? rows : rows.slice(0, 5)).forEach(({ k, e, w }) => {
     const x = k === "e" ? e : w, li = document.createElement("li");
     if (x.account) li.className = "acc-" + x.account;
     const l = document.createElement("div");
@@ -712,6 +712,12 @@ function render() {
     b.onclick = () => confirm(k === "e" ? "Supprimer cette dépense ?" : "Supprimer ce revenu ?") && deleteDoc(doc(db, k === "e" ? "expenses" : "pending", x.id));
     r.append(b); li.append(l, r); $("list").append(li);
   });
+  if (rows.length > 5) {
+    const li = document.createElement("li"), t = document.createElement("button");
+    t.className = "ghost"; t.style.width = "100%"; t.textContent = txAll ? "Réduire" : `Voir les ${rows.length - 5} autres`;
+    t.onclick = () => { txAll = !txAll; render(); };
+    li.append(t); $("list").append(li);
+  }
   renderFixed(); renderInc(); renderFixBars();
 }
 
@@ -725,7 +731,7 @@ function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y,
 function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
 
 let editId = null, curId = null;
-let incomes = [], incEditId = null, incCurId = null;
+let incomes = [], incEditId = null, incCurId = null, txAll = false;
 let acctName = null;
 function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 

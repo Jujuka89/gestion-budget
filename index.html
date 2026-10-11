@@ -168,7 +168,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div id="cats" class="mute">Aucune dépense ce mois-ci.</div>
   </section>
 
-  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button><button id="goMut">Mutuelle</button></div>
+  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button><button id="goMut">Mutuelle</button><button id="goCats">Catégories</button></div>
     </div>
     <div id="colR">
   <section>
@@ -290,6 +290,15 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <div class="mute" style="font-size:.8rem;margin-top:6px">Renseignez au moins un des trois : un pourcentage, un maximum par séance ou un plafond annuel. Ex. Julien · Ostéopathe · 30 € par séance.</div>
       </details>
     </section>
+  </div>
+
+  <div id="tabCats" hidden>
+    <section>
+      <h2>Catégories de dépense</h2>
+      <p class="mute">Les catégories et sous-catégories proposées quand vous ajoutez une transaction. Une catégorie avec des sous-catégories demande d'en choisir une (ex. Fast Food : McDo, Pizza…). Supprimer une catégorie ne supprime pas les transactions déjà saisies.</p>
+      <div class="row"><input id="catNew" placeholder="Nouvelle catégorie (ex. Coiffeur)"><button id="catAdd">Ajouter</button></div>
+    </section>
+    <section><div id="catList"></div></section>
   </div>
 
   <div id="tabPlanned" hidden>
@@ -468,9 +477,9 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="mute" style="font-size:.85rem;margin-top:10px">Pour qui</div>
       <div class="row" id="whoBtns"></div>
     </div>
-    <div id="txFast" hidden style="margin-top:10px">
-      <div class="mute" style="font-size:.85rem">Enseigne</div>
-      <select id="fastType" style="width:100%"><option value="">Choisir l'enseigne…</option><option>Pizza</option><option>McDo</option><option>Burger King</option><option>Kebab / Tacos</option><option>Autre</option></select>
+    <div id="txSub" hidden style="margin-top:10px">
+      <div class="mute" style="font-size:.85rem" id="subLab">Sous-catégorie</div>
+      <select id="subType" style="width:100%"></select>
     </div>
   </div>
   <div id="txStep3" hidden style="margin-top:12px">
@@ -592,7 +601,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "settings"), s => {
     flags = {}; s.docs.forEach(d => { if (d.id === "flags") flags = d.data(); });
-    maybeSeedJow(); renderEst();
+    maybeSeedJow(); maybeSeedCats(); renderEst();
   }));
   unsubs.push(snap(collection(db, "settlements"), s => {
     settles = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -601,6 +610,10 @@ function listen() {
   unsubs.push(snap(collection(db, "mutuelle"), s => {
     mutItems = s.docs.map(d => ({ id: d.id, ...d.data() }));
     renderMut();
+  }));
+  unsubs.push(snap(collection(db, "categories"), s => {
+    cats = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
+    catsLoaded = true; rebuildCatSelects(); renderCats(); maybeSeedCats();
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -733,7 +746,7 @@ function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), 
 let editId = null, curId = null;
 let incomes = [], incEditId = null, incCurId = null, txAll = false;
 let acctName = null;
-function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut", "tabCats"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -994,6 +1007,7 @@ const goTab = id => { document.querySelectorAll("nav button").forEach(x => x.cla
 $("goFixed").onclick = () => goTab("tabFixed");
 $("goInc").onclick = () => goTab("tabInc");
 $("goMut").onclick = () => { goTab("tabMut"); renderMut(); };
+$("goCats").onclick = () => { goTab("tabCats"); renderCats(); };
 
 function occOf(p) {
   if (!p.yearly) return p.month;
@@ -1326,7 +1340,7 @@ const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; 
 
 async function validateWait(w, exact = w.amount, acc = w.account || "Commun") {
   if (w.type === "pay") {
-    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, mutId: w.mutId || "", care: w.care || "", forWho: w.forWho || "", shop: w.shop || "" });
+    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, mutId: w.mutId || "", care: w.care || "", forWho: w.forWho || "", sub: w.sub || w.shop || "" });
     const rit = w.mutId ? mutItems.find(i => i.id === w.mutId) : null;
     const refund = rit ? calcRefund(rit, exact, today.slice(0, 4)) : (w.refund || 0);
     if (refund > 0) await addRefund(w.label, refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
@@ -1458,10 +1472,72 @@ function renderAccBtns() {
   $("accNote").textContent = list.length === 1 ? "Seul choix : compte " + list[0] : "";
 }
 const BENEF = ["Julien", "Marie", "Kélia", "Milio"];
+const DEFAULT_CATS = [...$("category").options].map(o => o.value).filter(Boolean);
+const DEFAULT_SUBS = { "Soins": ["Ostéopathe", "Médecin", "Pharmacie"], "Fast Food": ["Pizza", "McDo", "Burger King", "Kebab / Tacos", "Autre"] };
+const PROTECTED_CATS = ["Soins", "Lentilles", "Jow", "Courses", "Autre"];
+let cats = [], catsLoaded = false;
+const catNames = () => cats.length ? cats.map(c => c.name) : DEFAULT_CATS;
+const catSubs = c => { const k = cats.find(x => x.name === c); return k ? (k.subs || []) : (cats.length ? [] : (DEFAULT_SUBS[c] || [])); };
+function fillSub(cat) {
+  const sel = $("subType"), cur = sel.value, subs = catSubs(cat);
+  $("subLab").textContent = cat === "Fast Food" ? "Enseigne" : "Sous-catégorie";
+  sel.innerHTML = '<option value="">Choisir…</option>' + subs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  if (subs.includes(cur)) sel.value = cur;
+}
+function rebuildCatSelects() {
+  const names = catNames();
+  [["category", '<option value="" selected disabled>Choisir une catégorie…</option>'], ["estCat", ""]].forEach(([id, head]) => {
+    const sel = $(id), cur = sel.value;
+    sel.innerHTML = head + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    if (names.includes(cur)) sel.value = cur; else if (id === "category") sel.value = "";
+  });
+}
+function maybeSeedCats() {
+  if (!catsLoaded || flags === null || flags.catsSeeded || cats.length) return;
+  flags.catsSeeded = true;
+  Promise.all(DEFAULT_CATS.map((name, i) => addDoc(collection(db, "categories"), { name, subs: DEFAULT_SUBS[name] || [], order: i })))
+    .then(() => setDoc(doc(db, "settings", "flags"), { catsSeeded: true }, { merge: true }))
+    .catch(e => { flags.catsSeeded = false; console.error(e); });
+}
+function renderCats() {
+  const box = $("catList"); if (!box) return; box.innerHTML = "";
+  if (!cats.length) { box.innerHTML = '<div class="mute">Chargement des catégories…</div>'; return; }
+  cats.forEach(c => {
+    const used = histExp.filter(e => e.category === c.name).length, prot = PROTECTED_CATS.includes(c.name);
+    const card = document.createElement("div"); card.style.cssText = "border-top:1px solid var(--line);padding:12px 0";
+    const head = document.createElement("div"); head.className = "cat"; head.style.padding = "0"; head.innerHTML = "<b></b><span class='mute' style='font-size:.8rem'></span>";
+    head.children[0].textContent = c.name + (prot ? " 🔒" : ""); head.children[1].textContent = used + " transaction" + (used > 1 ? "s" : "");
+    card.append(head);
+    const chips = document.createElement("div"); chips.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:8px 0";
+    (c.subs || []).forEach(sub => {
+      const b = document.createElement("button"); b.className = "ghost"; b.style.cssText = "padding:3px 9px;font-size:.85rem"; b.textContent = sub + " ✕"; b.setAttribute("aria-label", "Supprimer la sous-catégorie " + sub);
+      b.onclick = () => confirm("Supprimer la sous-catégorie « " + sub + " » ?") && updateDoc(doc(db, "categories", c.id), { subs: c.subs.filter(x => x !== sub) });
+      chips.append(b);
+    });
+    if (!(c.subs || []).length) { const m = document.createElement("span"); m.className = "mute"; m.style.fontSize = ".85rem"; m.textContent = "Aucune sous-catégorie"; chips.append(m); }
+    card.append(chips);
+    const row = document.createElement("div"); row.className = "row";
+    const inp = document.createElement("input"); inp.placeholder = "Nouvelle sous-catégorie";
+    const add = document.createElement("button"); add.textContent = "＋ Sous-catégorie";
+    const doAdd = () => { const v = inp.value.trim(); if (!v || (c.subs || []).some(x => x.toLowerCase() === v.toLowerCase())) return; updateDoc(doc(db, "categories", c.id), { subs: [...(c.subs || []), v] }); };
+    add.onclick = doAdd; inp.onkeydown = e => { if (e.key === "Enter") doAdd(); };
+    row.append(inp, add);
+    if (!prot) { const del = document.createElement("button"); del.className = "ghost"; del.style.color = "var(--bad)"; del.textContent = "Supprimer la catégorie"; del.onclick = () => confirm("Supprimer la catégorie « " + c.name + " » ? Les " + used + " transaction(s) déjà saisies la gardent.") && deleteDoc(doc(db, "categories", c.id)); row.append(del); }
+    card.append(row); box.append(card);
+  });
+}
+$("catAdd").onclick = async () => {
+  const name = $("catNew").value.trim();
+  if (!name || name.includes("|") || cats.some(c => c.name.toLowerCase() === name.toLowerCase())) return;
+  await addDoc(collection(db, "categories"), { name, subs: [], order: cats.reduce((m, c) => Math.max(m, c.order || 0), 0) + 1 });
+  $("catNew").value = "";
+};
+$("catNew").onkeydown = e => { if (e.key === "Enter") $("catAdd").click(); };
+
 const CARE_DEFAULT = ["Ostéopathe", "Médecin", "Pharmacie"];
 let careFor = "", refManual = false;
 const fmtLeft = v => v === Infinity ? "illimité" : eur0(v);
-const careTypes = () => [...new Set([...CARE_DEFAULT, ...mutItems.map(i => i.label).filter(l => l && l.toLowerCase() !== "lentilles")])];
+const careTypes = () => [...new Set([...catSubs("Soins"), ...mutItems.map(i => i.label).filter(l => l && l.toLowerCase() !== "lentilles")])];
 const ruleFor = (care, who) => mutItems.find(i => i.person === who && (i.label || "").toLowerCase() === (care || "").toLowerCase());
 function ruleText(it) {
   const p = [];
@@ -1493,14 +1569,14 @@ function txUpdate() {
   const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
   $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
   $("txStep2").hidden = !exp;
-  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId, fast = exp && cat === "Fast Food", fastSel = fast ? $("fastType").value : "";
-  $("txFast").hidden = !fast;
-  $("label").hidden = lentNew || (fast && fastSel !== "" && fastSel !== "Autre"); $("tpendBox").hidden = lentNew; if (lentNew) $("tpend").checked = false;
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId, hasSub = exp && cat !== "Soins" && cat !== "Lentilles" && catSubs(cat).length > 0, subSel = hasSub ? $("subType").value : "";
+  $("txSub").hidden = !hasSub; if (hasSub) fillSub(cat);
+  $("label").hidden = lentNew || (hasSub && subSel !== "" && subSel !== "Autre"); $("tpendBox").hidden = lentNew; if (lentNew) $("tpend").checked = false;
   $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
   if (flow) { if (soins) fillCare(); renderWho(); }
   const careOk = !flow || (careFor !== "" && (lent || $("careType").value !== ""));
   const careName = lent ? "Lentilles" : $("careType").value;
-  $("txStep3").hidden = !(cred || (hasCat && careOk && (!fast || fastSel !== "")));
+  $("txStep3").hidden = !(cred || (hasCat && careOk && (!hasSub || subSel !== "")));
   if (!$("txStep3").hidden) renderAccBtns();
   const hasAcc = !$("txStep3").hidden && $("account").value !== "";
   $("txStep4").hidden = !hasAcc; $("btnAdd").hidden = !hasAcc;
@@ -1524,11 +1600,11 @@ $("tCred").onclick = () => { $("ttype").value = "cred"; txUpdate(); };
 $("category").onchange = () => { refManual = false; txUpdate(); };
 $("tpend").onchange = txUpdate; $("amount").oninput = txUpdate; $("date").onchange = txUpdate;
 $("careType").onchange = () => { refManual = false; txUpdate(); };
-$("fastType").onchange = txUpdate;
+$("subType").onchange = txUpdate;
 $("refAmt").oninput = () => { refManual = true; };
 
 function resetAddForm() {
-  wEditId = null; careFor = ""; refManual = false; $("careType").value = ""; $("fastType").value = "";
+  wEditId = null; careFor = ""; refManual = false; $("careType").value = ""; $("subType").value = "";
   $("ttype").value = ""; $("category").value = ""; $("account").value = "";
   $("label").value = ""; $("amount").value = ""; $("date").value = today;
   $("tpend").checked = false; $("tpend").disabled = false;
@@ -1546,13 +1622,14 @@ function startWaitEdit(w) {
   wEditId = w.id;
   $("ttype").value = w.type === "in" ? "cred" : "exp";
   if (w.type !== "in") { const c = w.cat || "Autre"; if (![...$("category").options].some(o => o.value === c)) $("category").add(new Option(c, c)); $("category").value = c; }
-  careFor = w.forWho || ""; $("fastType").value = w.shop || "";
+  careFor = w.forWho || "";
   $("account").value = w.account || "Commun";
   $("label").value = w.label; $("amount").value = w.amount; $("date").value = w.due || "";
   $("refAmt").value = w.refund || ""; $("refDate").value = w.refundDue || "";
   $("tpend").checked = true; $("tpend").disabled = true;
   $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
   txUpdate();
+  if (w.sub || w.shop) { $("subType").value = w.sub || w.shop; txUpdate(); }
   if (w.care) { $("careType").value = w.care; refManual = true; $("refAmt").value = w.refund || ""; txUpdate(); }
   $("refMut").value = w.mutId || "";
   if (w.done) $("tHint").textContent = "Élément déjà validé : la modification ne change pas la dépense déjà enregistrée.";
@@ -1569,15 +1646,16 @@ $("btnAdd").onclick = async () => {
   const cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
   const lent = !cred && category === "Lentilles", soins = (!cred && category === "Soins") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
   const lentNew = lent && !wEditId, pend = $("tpend").checked && !lentNew;
-  const shop = !cred && category === "Fast Food" ? $("fastType").value : "";
-  if (!cred && category === "Fast Food" && !shop) return;
-  const label = lentNew ? `Lentilles (${forWho})` : (shop && shop !== "Autre" ? shop : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : (shop ? "Fast food" : ""))));
+  const subHas = !cred && category !== "Soins" && category !== "Lentilles" && catSubs(category).length > 0;
+  const shop = subHas ? $("subType").value : "";
+  if (subHas && !shop) return;
+  const label = lentNew ? `Lentilles (${forWho})` : (shop && shop !== "Autre" ? shop : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : (shop ? category : ""))));
   if (soins && (!care || !forWho)) return;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;
   const isMed = !cred && category === MED, rule = soins ? ruleFor(care, forWho) : null, refRaw = parseFloat($("refAmt").value);
   const refAmt = soins ? (refRaw || 0) : (refRaw || amount), hasRef = isMed || (soins && !!rule && refAmt > 0);
-  const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : (shop ? { shop } : {});
+  const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : (shop ? { sub: shop } : {});
   const fr = d => new Date(d).toLocaleDateString("fr-FR");
   const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Soins · ${care} → ${forWho}` : "Dépense · " + category);
   const ok = await askConfirm(wEditId ? "Enregistrer les modifications ?" : "Confirmer la transaction", [

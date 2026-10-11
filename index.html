@@ -480,7 +480,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€)" style="width:100%">
       <label class="mute" style="display:block;margin-top:8px;font-size:.85rem">Vérifier le remboursement le<input id="refDate" type="date" style="width:100%"></label>
     </div>
-    <label class="mute" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
+    <label id="tpendBox" class="mute" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
     <div id="tHint" class="mute" style="margin-top:8px;font-size:.8rem"></div>
   </div>
   <div class="row" style="margin-top:14px">
@@ -488,6 +488,17 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <button class="ghost" id="btnAddCancel">Annuler</button>
     <button class="ghost" id="btnAddDel" hidden style="color:var(--bad)">Supprimer</button>
   </div>
+</dialog>
+
+<dialog id="cfmDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 id="cfmTitle" style="margin-top:0"></h2>
+  <div id="cfmBody"></div>
+  <div class="row" style="margin-top:14px"><button id="cfmOk">Confirmer</button><button class="ghost" id="cfmNo">Retour</button></div>
+</dialog>
+<dialog id="infoDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 id="infoTitle" style="margin-top:0"></h2>
+  <div id="infoBody"></div>
+  <div class="row" style="margin-top:14px"><button id="infoOk">OK</button></div>
 </dialog>
 
 </main>
@@ -1391,6 +1402,28 @@ const MED = "Médecin (remboursé)";
 async function addRefund(label, amount, account, due, mutId = "") {
   await addDoc(collection(db, "pending"), { type: "in", label: "Remboursement (" + label + ")", amount, account, due, cat: "", mutId, done: false, by: auth.currentUser.email, created: serverTimestamp() });
 }
+const dlgShow = d => d.showModal ? d.showModal() : d.setAttribute("open", "");
+function fillBody(box, lines) { box.innerHTML = ""; lines.filter(Boolean).forEach(t => { const d = document.createElement("div"); d.textContent = t; d.style.marginTop = "4px"; box.append(d); }); }
+function askConfirm(title, lines, okText = "Confirmer") {
+  return new Promise(res => {
+    $("cfmTitle").textContent = title; fillBody($("cfmBody"), lines); $("cfmOk").textContent = okText;
+    const dlg = $("cfmDlg");
+    $("cfmOk").onclick = () => { dlg.close(); res(true); };
+    $("cfmNo").onclick = () => { dlg.close(); res(false); };
+    dlg.oncancel = () => res(false);
+    dlgShow(dlg);
+  });
+}
+function showInfo(title, lines) {
+  return new Promise(res => {
+    $("infoTitle").textContent = title; fillBody($("infoBody"), lines);
+    const dlg = $("infoDlg");
+    $("infoOk").onclick = () => { dlg.close(); res(); };
+    dlg.oncancel = () => res();
+    dlgShow(dlg);
+  });
+}
+
 const DEFAULT_OWNER = { Cigarette: "Marie" };
 function allowedAccounts() {
   if ($("ttype").value !== "exp") return ["Julien", "Marie", "Commun"];
@@ -1445,7 +1478,8 @@ function txUpdate() {
   const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
   $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
   $("txStep2").hidden = !exp;
-  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent;
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId;
+  $("label").hidden = lentNew; $("tpendBox").hidden = lentNew; if (lentNew) $("tpend").checked = false;
   $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
   if (flow) { if (soins) fillCare(); renderWho(); }
   const careOk = !flow || (careFor !== "" && (lent || $("careType").value !== ""));
@@ -1515,15 +1549,25 @@ $("btnAddDel").onclick = async () => {
 
 $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), date = $("date").value;
-  const pend = $("tpend").checked, cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
+  const cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
   const lent = !cred && category === "Lentilles", soins = (!cred && category === "Soins") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
-  const label = $("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : "");
+  const lentNew = lent && !wEditId, pend = $("tpend").checked && !lentNew;
+  const label = lentNew ? `Lentilles (${forWho})` : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : ""));
   if (soins && (!care || !forWho)) return;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;
   const isMed = !cred && category === MED, rule = soins ? ruleFor(care, forWho) : null, refRaw = parseFloat($("refAmt").value);
   const refAmt = soins ? (refRaw || 0) : (refRaw || amount), hasRef = isMed || (soins && !!rule && refAmt > 0);
   const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : {};
+  const fr = d => new Date(d).toLocaleDateString("fr-FR");
+  const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Soins · ${care} → ${forWho}` : "Dépense · " + category);
+  const ok = await askConfirm(wEditId ? "Enregistrer les modifications ?" : "Confirmer la transaction", [
+    label, what, `Montant : ${eur(amount)}`, `Compte : ${account}`,
+    pend ? "En attente" + (date ? " · prévue le " + fr(date) : "") : "Date : " + fr(date),
+    hasRef ? `Remboursement prévu : +${eur(refAmt)} (ligne ajoutée en attente)` : ""
+  ], wEditId ? "Enregistrer" : "Valider");
+  if (!ok) return;
+  const leftBefore = lentNew && rule ? mutUsage(rule, date.slice(0, 4)).left : 0;
   if (wEditId) {
     await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: hasRef ? refAmt : 0, refundDue: hasRef ? refDue : "", mutId, ...extra });
     closeTx(); return;
@@ -1537,6 +1581,13 @@ $("btnAdd").onclick = async () => {
     if (hasRef) await addRefund(label, refAmt, account, refDue, mutId);
   }
   closeTx();
+  if (lentNew && rule) {
+    const after = leftBefore === Infinity ? Infinity : Math.max(0, leftBefore - (hasRef ? refAmt : 0));
+    await showInfo("Lentilles · " + forWho, [
+      hasRef ? `Remboursement prévu : +${eur(refAmt)} (en attente)` : "Aucun remboursement : plafond atteint ou montant nul.",
+      `Il reste ${fmtLeft(after)} de remboursement pour l'année ${date.slice(0, 4)}` + (rule.yearly > 0 ? ` (plafond ${eur0(rule.yearly)})` : "") + "."
+    ]);
+  }
   if (!pend && date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
 };
 resetAddForm();

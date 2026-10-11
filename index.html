@@ -174,7 +174,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div id="cats" class="mute">Aucune dépense ce mois-ci.</div>
   </section>
 
-  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button></div>
+  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button><button id="goMut">Mutuelle</button></div>
     </div>
     <div id="colR">
   <section>
@@ -266,7 +266,18 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="big" id="acLeft"></div>
       <div id="acInfo" style="margin-top:8px"></div>
     </section>
-    <section id="acMut" hidden>
+    <section><h2>Dépenses par catégorie · ce mois-ci</h2><div id="acPie1"></div></section>
+    <section><h2>Dépenses par catégorie · 12 derniers mois</h2><div id="acPie2"></div></section>
+    <section><h2>Dépenses des 6 derniers mois</h2><div id="acBars"></div></section>
+    <section>
+      <h2>Transactions du mois</h2>
+      <ul id="acList"></ul>
+      <p id="acEmpty" class="mute">Aucune transaction ce mois-ci sur ce compte.</p>
+    </section>
+  </div>
+
+  <div id="tabMut" hidden>
+    <section id="acMut">
       <h2>🩺 Mutuelle · remboursements <span id="acMutYear" class="mute"></span></h2>
       <div id="acMutList"></div>
       <details style="margin-top:8px"><summary class="mute">Ajouter / modifier une règle de remboursement</summary>
@@ -281,14 +292,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         </div>
         <div class="mute" style="font-size:.8rem;margin-top:6px">Renseignez au moins un des trois : un pourcentage, un maximum par séance ou un plafond annuel. Ex. Julien · Ostéopathe · 30 € par séance.</div>
       </details>
-    </section>
-    <section><h2>Dépenses par catégorie · ce mois-ci</h2><div id="acPie1"></div></section>
-    <section><h2>Dépenses par catégorie · 12 derniers mois</h2><div id="acPie2"></div></section>
-    <section><h2>Dépenses des 6 derniers mois</h2><div id="acBars"></div></section>
-    <section>
-      <h2>Transactions du mois</h2>
-      <ul id="acList"></ul>
-      <p id="acEmpty" class="mute">Aucune transaction ce mois-ci sur ce compte.</p>
     </section>
   </div>
 
@@ -592,7 +595,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "mutuelle"), s => {
     mutItems = s.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (acctName) renderAcctPage();
+    renderMut();
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -669,7 +672,7 @@ function render() {
     if (i === 5) estEntries().filter(en => en.zone === "Commun").sort((a, b) => estAmt(b) - estAmt(a)).forEach(en => $("sum").append(miniGauge(en.category + (en.zone === "Commun" ? "" : " · " + en.zone), estActual(en), estAmt(en))));
   });
 
-  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); if (acctName) renderAcctPage();
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); renderMut(); if (acctName) renderAcctPage();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
@@ -719,7 +722,7 @@ function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), 
 let editId = null, curId = null;
 let incomes = [], incEditId = null, incCurId = null;
 let acctName = null;
-function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -979,6 +982,7 @@ const incAcct = (acc, m) => incomes.filter(f => acc === "Commun" ? (f.account !=
 const goTab = id => { document.querySelectorAll("nav button").forEach(x => x.classList.remove("on")); show(id); };
 $("goFixed").onclick = () => goTab("tabFixed");
 $("goInc").onclick = () => goTab("tabInc");
+$("goMut").onclick = () => { goTab("tabMut"); renderMut(); };
 
 function occOf(p) {
   if (!p.yearly) return p.month;
@@ -1724,7 +1728,7 @@ function barsHtml(items, color) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Dépenses des 6 derniers mois">${g}</svg>`;
 }
 function openAcct(name) {
-  acctName = name; if (BENEF.includes(name)) $("mWho").value = name;
+  acctName = name;
   document.querySelectorAll("nav button").forEach(x => x.classList.remove("on"));
   show("tabAcct"); renderAcctPage(); window.scrollTo(0, 0);
 }
@@ -1760,9 +1764,6 @@ function openTxPreset(person, itemId) {
   $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
 }
 function renderMut() {
-  const sec = $("acMut");
-  if (!acctName || acctName === "Commun") { sec.hidden = true; return; }
-  sec.hidden = false;
   const year = $("month").value.slice(0, 4); $("acMutYear").textContent = year;
   const list = $("acMutList"); list.innerHTML = "";
   const items = mutItems.slice().sort((a, b) => BENEF.indexOf(a.person) - BENEF.indexOf(b.person) || (a.label || "").localeCompare(b.label || ""));
@@ -1782,7 +1783,7 @@ function renderMut() {
     box.children[3].textContent = `Remboursé : ${eur0(u.got)} · en cours : ${eur0(u.pend)} · reste possible : ${fmtLeft(u.left)}`;
     if (it.unit > 0 && cap) { const max = Math.floor(it.yearly / it.unit + 1e-9); box.children[4].textContent = `Séances : ${Math.min(max, Math.round(used / it.unit))} / ${max}`; } else box.children[4].hidden = true;
     const row = box.children[5], btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; row.append(b); };
-    btn("＋ Dépense", () => openTxPreset(acctName, it.id));
+    btn("＋ Dépense", () => openTxPreset(it.person === "Julien" || it.person === "Marie" ? it.person : "", it.id));
     btn("Modifier", () => { mEditId = it.id; $("mWho").value = it.person; $("mLabel").value = it.label; $("mRate").value = it.rate || ""; $("mUnit").value = it.unit || ""; $("mYear").value = it.yearly || ""; $("mBtn").textContent = "Enregistrer"; $("mCancel").hidden = false; $("acMut").querySelector("details").open = true; $("mLabel").focus(); }, true);
     btn("Supprimer", () => confirm("Supprimer la règle « " + it.label + " · " + it.person + " » ? Les remboursements déjà saisis restent dans vos transactions.") && deleteDoc(doc(db, "mutuelle", it.id)), true);
     list.append(box);
@@ -1801,7 +1802,6 @@ $("mBtn").onclick = async () => {
 };
 
 function renderAcctPage() {
-  renderMut();
   const name = acctName, m = $("month").value, r = acctRem(m), info = r && r[name];
   const col = { Julien: "bleu", Marie: "rose", Commun: "blanc" }[name];
   $("acSum").style.cssText = `background:var(--${col});border-left:4px solid var(--${col}-b)`;

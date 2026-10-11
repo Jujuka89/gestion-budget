@@ -93,10 +93,6 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
 <div id="app" hidden>
   <header>
     <h1>Budget de la maison</h1>
-    <div class="row" style="flex:0 1 auto">
-      <input id="month" type="month" aria-label="Mois">
-      <button class="ghost" id="btnOut">Déconnexion</button>
-    </div>
   </header>
 
   <section id="accessErr" hidden style="border-color:var(--bad)">
@@ -437,6 +433,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <ul id="idHist"></ul>
     </section>
   </div>
+  <footer style="margin-top:28px;padding-top:14px;border-top:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <label class="mute" style="display:flex;gap:8px;align-items:center">Mois affiché <input id="month" type="month" aria-label="Mois"></label>
+    <button class="ghost" id="btnOut">Déconnexion</button>
+  </footer>
 </div>
 
 <dialog id="valDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,360px)">

@@ -266,6 +266,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="big" id="acLeft"></div>
       <div id="acInfo" style="margin-top:8px"></div>
     </section>
+    <section><h2 id="acSalTitle"></h2><div id="acSalChart"></div><div id="acSalNote" class="mute" style="font-size:.85rem"></div></section>
     <section><h2>Dépenses par catégorie · ce mois-ci</h2><div id="acPie1"></div></section>
     <section><h2>Dépenses par catégorie · 12 derniers mois</h2><div id="acPie2"></div></section>
     <section><h2>Dépenses des 6 derniers mois</h2><div id="acBars"></div></section>
@@ -1801,6 +1802,30 @@ $("mBtn").onclick = async () => {
   resetMutForm();
 };
 
+function renderSalChart(name, m, col) {
+  const yr = m.slice(0, 4), items = []; let total = 0, est = 0, n = 0;
+  for (let k = 1; k <= 12; k++) {
+    const x = yr + "-" + String(k).padStart(2, "0"), d = salaries[x];
+    const real = !!(d && d.p && d.p.some(a => a.a > 0)), sp = salPair(x);
+    const v = sp ? (name === "Commun" ? sp.Julien + sp.Marie : sp[name]) : 0;
+    const lab = new Date(x + "-01").toLocaleDateString("fr-FR", { month: "short" }).replace(".", "");
+    items.push([lab, v, !real && v > 0]);
+    if (v > 0) { total += v; n++; if (!real) est += v; }
+  }
+  $("acSalTitle").textContent = (name === "Commun" ? "Salaires du foyer (Julien + Marie)" : "Salaires de " + name) + " par mois · " + yr;
+  const mx = Math.max(...items.map(i => i[1]), 1), W = 360, H = 170, L = 6, B = 24, T = 20, bw = (W - 2 * L) / 12;
+  const short = v => v <= 0 ? "" : v >= 1000 ? (v / 1000).toFixed(1).replace(".", ",") + "k" : String(Math.round(v));
+  let g = "";
+  items.forEach(([lab, v, isEst], i) => {
+    const h = v / mx * (H - B - T), x = L + i * bw + bw * 0.12, w = bw * 0.76, c = `var(--${col}-b)`;
+    g += `<rect x="${x}" y="${H - B - h}" width="${w}" height="${Math.max(h, v > 0 ? 2 : 0)}" rx="3" fill="${c}" fill-opacity="${isEst ? 0.3 : 1}" ${isEst ? `stroke="${c}" stroke-dasharray="3 2"` : ""}><title>${esc(lab)} ${yr} : ${eur0(v)}${isEst ? " (estimé)" : ""}</title></rect>`;
+    g += `<text x="${x + w / 2}" y="${H - B - h - 4}" text-anchor="middle" font-size="9" fill="var(--ink)">${short(v)}</text>`;
+    g += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="9" fill="var(--mute)">${esc(lab)}</text>`;
+  });
+  $("acSalChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Salaires par mois">${g}</svg>`;
+  $("acSalNote").textContent = n ? `Total ${yr} : ${eur0(total)}${est > 0 ? " (dont " + eur0(est) + " estimé)" : ""} · moyenne : ${eur0(total / n)} par mois. Barres pleines : salaires saisis, barres claires : estimation.` : "Aucun salaire enregistré pour cette année. Saisissez-les dans l'onglet Répartition.";
+}
+
 function renderAcctPage() {
   const name = acctName, m = $("month").value, r = acctRem(m), info = r && r[name];
   const col = { Julien: "bleu", Marie: "rose", Commun: "blanc" }[name];
@@ -1830,6 +1855,7 @@ function renderAcctPage() {
   }
   $("acPie2").innerHTML = pieHtml(all);
   $("acBars").innerHTML = barsHtml(bars, `var(--${col}-b)`);
+  renderSalChart(name, m, col);
   const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && accMatch(w, name));
   const list = [...expenses.filter(e => accMatch(e, name)).map(e => ({ k: "e", x: e, date: e.date || "" })), ...credits.map(w => ({ k: "c", x: w, date: w.doneDate }))].sort((a, b) => b.date.localeCompare(a.date));
   $("acEmpty").hidden = list.length > 0; $("acList").innerHTML = "";

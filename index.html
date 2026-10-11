@@ -470,6 +470,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="mute" style="font-size:.85rem;margin-top:10px">Pour qui</div>
       <div class="row" id="whoBtns"></div>
     </div>
+    <div id="txFast" hidden style="margin-top:10px">
+      <div class="mute" style="font-size:.85rem">Enseigne</div>
+      <select id="fastType" style="width:100%"><option value="">Choisir l'enseigne…</option><option>Pizza</option><option>McDo</option><option>Burger King</option><option>Kebab / Tacos</option><option>Autre</option></select>
+    </div>
   </div>
   <div id="txStep3" hidden style="margin-top:12px">
     <div class="mute" style="font-size:.85rem">Compte</div>
@@ -1318,7 +1322,7 @@ const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; 
 
 async function validateWait(w, exact = w.amount, acc = w.account || "Commun") {
   if (w.type === "pay") {
-    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, mutId: w.mutId || "", care: w.care || "", forWho: w.forWho || "" });
+    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, mutId: w.mutId || "", care: w.care || "", forWho: w.forWho || "", shop: w.shop || "" });
     const rit = w.mutId ? mutItems.find(i => i.id === w.mutId) : null;
     const refund = rit ? calcRefund(rit, exact, today.slice(0, 4)) : (w.refund || 0);
     if (refund > 0) await addRefund(w.label, refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
@@ -1485,13 +1489,14 @@ function txUpdate() {
   const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
   $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
   $("txStep2").hidden = !exp;
-  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId;
-  $("label").hidden = lentNew; $("tpendBox").hidden = lentNew; if (lentNew) $("tpend").checked = false;
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId, fast = exp && cat === "Fast Food", fastSel = fast ? $("fastType").value : "";
+  $("txFast").hidden = !fast;
+  $("label").hidden = lentNew || (fast && fastSel !== "" && fastSel !== "Autre"); $("tpendBox").hidden = lentNew; if (lentNew) $("tpend").checked = false;
   $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
   if (flow) { if (soins) fillCare(); renderWho(); }
   const careOk = !flow || (careFor !== "" && (lent || $("careType").value !== ""));
   const careName = lent ? "Lentilles" : $("careType").value;
-  $("txStep3").hidden = !(cred || (hasCat && careOk));
+  $("txStep3").hidden = !(cred || (hasCat && careOk && (!fast || fastSel !== "")));
   if (!$("txStep3").hidden) renderAccBtns();
   const hasAcc = !$("txStep3").hidden && $("account").value !== "";
   $("txStep4").hidden = !hasAcc; $("btnAdd").hidden = !hasAcc;
@@ -1515,10 +1520,11 @@ $("tCred").onclick = () => { $("ttype").value = "cred"; txUpdate(); };
 $("category").onchange = () => { refManual = false; txUpdate(); };
 $("tpend").onchange = txUpdate; $("amount").oninput = txUpdate; $("date").onchange = txUpdate;
 $("careType").onchange = () => { refManual = false; txUpdate(); };
+$("fastType").onchange = txUpdate;
 $("refAmt").oninput = () => { refManual = true; };
 
 function resetAddForm() {
-  wEditId = null; careFor = ""; refManual = false; $("careType").value = "";
+  wEditId = null; careFor = ""; refManual = false; $("careType").value = ""; $("fastType").value = "";
   $("ttype").value = ""; $("category").value = ""; $("account").value = "";
   $("label").value = ""; $("amount").value = ""; $("date").value = today;
   $("tpend").checked = false; $("tpend").disabled = false;
@@ -1536,7 +1542,7 @@ function startWaitEdit(w) {
   wEditId = w.id;
   $("ttype").value = w.type === "in" ? "cred" : "exp";
   if (w.type !== "in") { const c = w.cat || "Autre"; if (![...$("category").options].some(o => o.value === c)) $("category").add(new Option(c, c)); $("category").value = c; }
-  careFor = w.forWho || "";
+  careFor = w.forWho || ""; $("fastType").value = w.shop || "";
   $("account").value = w.account || "Commun";
   $("label").value = w.label; $("amount").value = w.amount; $("date").value = w.due || "";
   $("refAmt").value = w.refund || ""; $("refDate").value = w.refundDue || "";
@@ -1559,13 +1565,15 @@ $("btnAdd").onclick = async () => {
   const cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
   const lent = !cred && category === "Lentilles", soins = (!cred && category === "Soins") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
   const lentNew = lent && !wEditId, pend = $("tpend").checked && !lentNew;
-  const label = lentNew ? `Lentilles (${forWho})` : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : ""));
+  const shop = !cred && category === "Fast Food" ? $("fastType").value : "";
+  if (!cred && category === "Fast Food" && !shop) return;
+  const label = lentNew ? `Lentilles (${forWho})` : (shop && shop !== "Autre" ? shop : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : (shop ? "Fast food" : ""))));
   if (soins && (!care || !forWho)) return;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;
   const isMed = !cred && category === MED, rule = soins ? ruleFor(care, forWho) : null, refRaw = parseFloat($("refAmt").value);
   const refAmt = soins ? (refRaw || 0) : (refRaw || amount), hasRef = isMed || (soins && !!rule && refAmt > 0);
-  const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : {};
+  const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : (shop ? { shop } : {});
   const fr = d => new Date(d).toLocaleDateString("fr-FR");
   const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Soins · ${care} → ${forWho}` : "Dépense · " + category);
   const ok = await askConfirm(wEditId ? "Enregistrer les modifications ?" : "Confirmer la transaction", [

@@ -127,9 +127,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         </div>
         <div class="cat" style="padding:0;font-size:.8rem"><span style="color:var(--bleu-b)">◀ Julien</span><span class="mute">équilibre</span><span style="color:var(--rose-b)">Marie ▶</span></div>
         <div id="balTxt" style="font-size:1.15rem;font-weight:700;margin-top:8px"></div>
-        <div id="balSub" class="mute" style="font-size:.85rem"></div>
         <div id="balSub2" class="mute" style="font-size:.8rem"></div>
-        <button class="ghost" id="balSettle" hidden style="margin-top:8px"></button>
         <details style="margin-top:8px;font-size:.9rem"><summary class="mute">Voir le détail des budgets (partage moitié-moitié)</summary>
           <div id="balDet"></div>
         </details>
@@ -1994,15 +1992,7 @@ function renderBalance(m) {
   $("balVal").textContent = equal ? "0 €" : (bal > 0 ? "◀ " + eur0(bal) : eur0(-bal) + " ▶");
   if (equal) { T.textContent = totAll > 0 || settles.length ? "Budgets équilibrés" : "Aucun budget payé par Julien ou Marie pour l'instant"; T.style.color = totAll > 0 || settles.length ? "var(--ok)" : "var(--mute)"; }
   else { T.textContent = `${A} a ${eur0(Math.abs(bal))} d'avance sur ${B}`; T.style.color = bal > 0 ? "var(--bleu-b)" : "var(--rose-b)"; }
-  $("balSub").textContent = equal ? "" : `${B} doit ${eur0(Math.abs(bal))} à ${A} pour équilibrer`;
   $("balSub2").textContent = `Report des mois précédents : ${adv(bal - cur.diff)} · ce mois-ci : ${adv(cur.diff)} · payé ce mois-ci : Julien ${eur0(cur.pJ)}, Marie ${eur0(cur.pM)}`;
-  const bt = $("balSettle");
-  bt.hidden = equal || m !== today.slice(0, 7);
-  bt.textContent = `✓ ${B} a remboursé ${A} (${eur0(Math.abs(bal))})`;
-  bt.onclick = async () => {
-    if (!confirm(`Enregistrer que ${B} a remboursé ${Math.abs(bal).toFixed(2).replace(".", ",")} € à ${A} ? Le solde repart alors de zéro.`)) return;
-    await addDoc(collection(db, "settlements"), { from: B, to: A, amount: Math.round(Math.abs(bal) * 100) / 100, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp() });
-  };
   const det = $("balDet"); det.innerHTML = "";
   const groups = {};
   cur.list.forEach(e => { const k = e.planId ? "Dépenses prévues" : e.category; (groups[k] = groups[k] || { J: 0, M: 0 })[e.account === "Julien" ? "J" : "M"] += e.amount; });

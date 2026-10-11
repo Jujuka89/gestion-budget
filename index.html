@@ -668,7 +668,7 @@ function render() {
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
   else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Crédits et revenus ponctuels", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
-    if (![0, 1, 2, 3].includes(i) && !(v > 0)) return;
+    if (![0, 1, 2].includes(i) && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
     d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)";

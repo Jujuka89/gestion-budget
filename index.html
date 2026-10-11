@@ -196,6 +196,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="mute">Total des dépenses fixes par mois</div>
       <div class="big" id="fixedTotal">0 €</div>
       <div class="mute" id="fixedYear"></div>
+      <div id="fixBars" style="margin-top:10px"></div>
       <p class="mute">Ces dépenses sont déduites automatiquement du budget de chaque mois, à partir du mois de départ choisi. Cliquez sur une dépense pour voir son détail.</p>
     </section>
     <section>
@@ -230,6 +231,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="mute">Total des revenus fixes par mois</div>
       <div class="big" id="incTotal" style="color:var(--ok)">0 €</div>
       <div class="mute" id="incYear"></div>
+      <div id="incBars" style="margin-top:10px"></div>
       <p class="mute">Ces revenus sont ajoutés automatiquement au budget de chaque mois, à partir du mois de départ choisi. Cliquez sur un revenu pour voir son détail.</p>
     </section>
     <section>
@@ -708,7 +710,7 @@ function render() {
     b.onclick = () => confirm(k === "e" ? "Supprimer cette dépense ?" : "Supprimer ce revenu ?") && deleteDoc(doc(db, k === "e" ? "expenses" : "pending", x.id));
     r.append(b); li.append(l, r); $("list").append(li);
   });
-  renderFixed(); renderInc();
+  renderFixed(); renderInc(); renderFixBars();
 }
 
 function prices(f) { return (f.prices && f.prices.length ? f.prices : [{ from: f.start || "0000-00", amount: f.amount }]).slice().sort((a, b) => a.from.localeCompare(b.from)); }
@@ -1824,6 +1826,29 @@ function renderSalChart(name, m, col) {
   });
   $("acSalChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Salaires par mois">${g}</svg>`;
   $("acSalNote").textContent = n ? `Total ${yr} : ${eur0(total)}${est > 0 ? " (dont " + eur0(est) + " estimé)" : ""} · moyenne : ${eur0(total / n)} par mois. Barres pleines : salaires saisis, barres claires : estimation.` : "Aucun salaire enregistré pour cette année. Saisissez-les dans l'onglet Répartition.";
+}
+
+function monthBars(list, color, el, title) {
+  const yr = $("month").value.slice(0, 4), cur = today.slice(0, 7), items = []; let total = 0;
+  for (let k = 1; k <= 12; k++) {
+    const x = yr + "-" + String(k).padStart(2, "0"), v = list.reduce((t, f) => t + (priceAt(f, x) || 0), 0);
+    items.push([new Date(x + "-01").toLocaleDateString("fr-FR", { month: "short" }).replace(".", ""), v, x === cur]);
+    total += v;
+  }
+  const mx = Math.max(...items.map(i => i[1]), 1), W = 360, H = 170, L = 6, B = 24, T = 20, bw = (W - 2 * L) / 12;
+  const short = v => v <= 0 ? "" : v >= 1000 ? (v / 1000).toFixed(1).replace(".", ",") + "k" : String(Math.round(v));
+  let g = "";
+  items.forEach(([lab, v, isCur], i) => {
+    const h = v / mx * (H - B - T), x = L + i * bw + bw * 0.12, w = bw * 0.76;
+    g += `<rect x="${x}" y="${H - B - h}" width="${w}" height="${Math.max(h, v > 0 ? 2 : 0)}" rx="3" fill="${color}" ${isCur ? 'stroke="var(--ink)" stroke-width="1.5"' : ""}><title>${esc(lab)} ${yr} : ${eur0(v)}</title></rect>`;
+    g += `<text x="${x + w / 2}" y="${H - B - h - 4}" text-anchor="middle" font-size="9" fill="var(--ink)">${short(v)}</text>`;
+    g += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="9" fill="${isCur ? "var(--ink)" : "var(--mute)"}" ${isCur ? 'font-weight="700"' : ""}>${esc(lab)}</text>`;
+  });
+  el.innerHTML = `<div class="mute" style="font-size:.85rem">${esc(title)} · ${yr}</div><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(title)}">${g}</svg><div class="mute" style="font-size:.85rem">Total ${yr} : ${eur0(total)} · moyenne : ${eur0(total / 12)} par mois. Le mois en cours est entouré.</div>`;
+}
+function renderFixBars() {
+  monthBars(fixed, "var(--bad)", $("fixBars"), "Dépenses fixes par mois");
+  monthBars(incomes, "var(--ok)", $("incBars"), "Revenus fixes par mois");
 }
 
 function renderAcctPage() {

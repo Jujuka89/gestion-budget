@@ -466,7 +466,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <div class="mute" style="font-size:.85rem">Catégorie</div>
     <select id="category" style="width:100%"><option value="" selected disabled>Choisir une catégorie…</option>
         <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
-        <option>Santé</option><option>Soins</option><option>Lentilles</option><option>Loisirs</option>
+        <option>Santé</option><option>Lentilles</option><option>Loisirs</option>
         <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Jeux</option><option>Animaux</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
       </select>
     <div id="txCare" hidden style="margin-top:10px">
@@ -597,11 +597,11 @@ function listen() {
   splitDirty = false; fillSplit();
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
-    render(); renderSplit(); renderWait();
+    waitsLoaded = true; maybeMigrateSante(); render(); renderSplit(); renderWait();
   }));
   unsubs.push(snap(collection(db, "settings"), s => {
     flags = {}; s.docs.forEach(d => { if (d.id === "flags") flags = d.data(); });
-    maybeSeedJow(); maybeSeedCats(); renderEst();
+    maybeSeedJow(); maybeSeedCats(); maybeMigrateSante(); renderEst();
   }));
   unsubs.push(snap(collection(db, "settlements"), s => {
     settles = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -613,7 +613,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "categories"), s => {
     cats = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
-    catsLoaded = true; rebuildCatSelects(); renderCats(); maybeSeedCats();
+    catsLoaded = true; rebuildCatSelects(); renderCats(); maybeSeedCats(); maybeMigrateSante();
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -626,7 +626,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "expenses"), s => {
     histExp = s.docs.map(d => ({ id: d.id, ...d.data() }));
-    avgC = estAvg(); render();
+    avgC = estAvg(); histLoaded = true; maybeMigrateSante(); render();
   }, () => {}));
   unsubs.push(snap(query(collection(db, "expenses"), where("planId", ">", "")), s => {
     planBuys = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1473,9 +1473,9 @@ function renderAccBtns() {
 }
 const BENEF = ["Julien", "Marie", "Kélia", "Milio"];
 const DEFAULT_CATS = [...$("category").options].map(o => o.value).filter(Boolean);
-const DEFAULT_SUBS = { "Soins": ["Ostéopathe", "Médecin", "Pharmacie"], "Fast Food": ["Pizza", "McDo", "Burger King", "Kebab / Tacos", "Autre"] };
-const PROTECTED_CATS = ["Soins", "Lentilles", "Jow", "Courses", "Autre"];
-let cats = [], catsLoaded = false;
+const DEFAULT_SUBS = { "Santé": ["Ostéopathe", "Médecin", "Pharmacie"], "Fast Food": ["Pizza", "McDo", "Burger King", "Kebab / Tacos", "Autre"] };
+const PROTECTED_CATS = ["Santé", "Lentilles", "Jow", "Courses", "Autre"];
+let cats = [], catsLoaded = false, histLoaded = false, waitsLoaded = false, migratingSante = false;
 const catNames = () => cats.length ? cats.map(c => c.name) : DEFAULT_CATS;
 const catSubs = c => { const k = cats.find(x => x.name === c); return k ? (k.subs || []) : (cats.length ? [] : (DEFAULT_SUBS[c] || [])); };
 function fillSub(cat) {
@@ -1491,6 +1491,22 @@ function rebuildCatSelects() {
     sel.innerHTML = head + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     if (names.includes(cur)) sel.value = cur; else if (id === "category") sel.value = "";
   });
+}
+async function maybeMigrateSante() {
+  if (migratingSante || !catsLoaded || flags === null || !histLoaded || !waitsLoaded || flags.santeMigrated || !cats.length) return;
+  migratingSante = true;
+  try {
+    const old = cats.find(c => c.name === "Soins"), sante = cats.find(c => c.name === "Santé");
+    if (old) {
+      if (sante) await deleteDoc(doc(db, "categories", sante.id));
+      await updateDoc(doc(db, "categories", old.id), { name: "Santé" });
+    }
+    await Promise.all([
+      ...histExp.filter(e => e.category === "Soins").map(e => updateDoc(doc(db, "expenses", e.id), { category: "Santé" })),
+      ...waits.filter(w => w.cat === "Soins").map(w => updateDoc(doc(db, "pending", w.id), { cat: "Santé" }))
+    ]);
+    await setDoc(doc(db, "settings", "flags"), { santeMigrated: true }, { merge: true });
+  } catch (e) { migratingSante = false; console.error(e); }
 }
 function maybeSeedCats() {
   if (!catsLoaded || flags === null || flags.catsSeeded || cats.length) return;
@@ -1537,7 +1553,7 @@ $("catNew").onkeydown = e => { if (e.key === "Enter") $("catAdd").click(); };
 const CARE_DEFAULT = ["Ostéopathe", "Médecin", "Pharmacie"];
 let careFor = "", refManual = false;
 const fmtLeft = v => v === Infinity ? "illimité" : eur0(v);
-const careTypes = () => [...new Set([...catSubs("Soins"), ...mutItems.map(i => i.label).filter(l => l && l.toLowerCase() !== "lentilles")])];
+const careTypes = () => [...new Set([...catSubs("Santé"), ...mutItems.map(i => i.label).filter(l => l && l.toLowerCase() !== "lentilles")])];
 const ruleFor = (care, who) => mutItems.find(i => i.person === who && (i.label || "").toLowerCase() === (care || "").toLowerCase());
 function ruleText(it) {
   const p = [];
@@ -1569,7 +1585,7 @@ function txUpdate() {
   const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
   $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
   $("txStep2").hidden = !exp;
-  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Soins", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId, hasSub = exp && cat !== "Soins" && cat !== "Lentilles" && catSubs(cat).length > 0, subSel = hasSub ? $("subType").value : "";
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Santé", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId, hasSub = exp && cat !== "Santé" && cat !== "Lentilles" && catSubs(cat).length > 0, subSel = hasSub ? $("subType").value : "";
   $("txSub").hidden = !hasSub; if (hasSub) fillSub(cat);
   $("label").hidden = lentNew || (hasSub && subSel !== "" && subSel !== "Autre"); $("tpendBox").hidden = lentNew; if (lentNew) $("tpend").checked = false;
   $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
@@ -1644,9 +1660,9 @@ $("btnAddDel").onclick = async () => {
 $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), date = $("date").value;
   const cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
-  const lent = !cred && category === "Lentilles", soins = (!cred && category === "Soins") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
+  const lent = !cred && category === "Lentilles", soins = (!cred && category === "Santé") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
   const lentNew = lent && !wEditId, pend = $("tpend").checked && !lentNew;
-  const subHas = !cred && category !== "Soins" && category !== "Lentilles" && catSubs(category).length > 0;
+  const subHas = !cred && category !== "Santé" && category !== "Lentilles" && catSubs(category).length > 0;
   const shop = subHas ? $("subType").value : "";
   if (subHas && !shop) return;
   const label = lentNew ? `Lentilles (${forWho})` : (shop && shop !== "Autre" ? shop : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : (shop ? category : ""))));
@@ -1657,7 +1673,7 @@ $("btnAdd").onclick = async () => {
   const refAmt = soins ? (refRaw || 0) : (refRaw || amount), hasRef = isMed || (soins && !!rule && refAmt > 0);
   const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : (shop ? { sub: shop } : {});
   const fr = d => new Date(d).toLocaleDateString("fr-FR");
-  const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Soins · ${care} → ${forWho}` : "Dépense · " + category);
+  const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Santé · ${care} → ${forWho}` : "Dépense · " + category);
   const ok = await askConfirm(wEditId ? "Enregistrer les modifications ?" : "Confirmer la transaction", [
     label, what, `Montant : ${eur(amount)}`, `Compte : ${account}`,
     pend ? "En attente" + (date ? " · prévue le " + fr(date) : "") : "Date : " + fr(date),
@@ -1851,7 +1867,7 @@ $("refMut").onchange = () => {
 function openTxPreset(person, itemId) {
   const it = mutItems.find(i => i.id === itemId); if (!it) return;
   resetAddForm();
-  $("ttype").value = "exp"; $("category").value = (it.label || "").toLowerCase() === "lentilles" ? "Lentilles" : "Soins"; careFor = it.person; txUpdate();
+  $("ttype").value = "exp"; $("category").value = (it.label || "").toLowerCase() === "lentilles" ? "Lentilles" : "Santé"; careFor = it.person; txUpdate();
   $("careType").value = it.label; txUpdate();
   $("account").value = person; txUpdate();
   $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");

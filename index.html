@@ -696,11 +696,10 @@ function render() {
   const pm = nmo(m, -1), prevCat = catTotals(pm), prevTot = Object.values(prevCat).reduce((t, v) => t + v, 0), showD = histLoaded && prevTot > 0;
   const names = [...new Set([...Object.keys(byCat), ...(showD ? Object.keys(prevCat) : [])])];
   const catRows = names.map(c => [c, byCat[c] || 0, prevCat[c] || 0]).sort((a, b) => b[1] - a[1] || b[2] - a[2]);
-  $("cats").innerHTML = (showD && catRows.length ? `<div style="font-size:.8rem;margin-bottom:6px">Écart par rapport à ${monthLabel(pm)} : <span style="color:var(--bad);font-weight:700">rouge = plus dépensé</span>, <span style="color:var(--ok);font-weight:700">vert = moins</span></div>` : "")
-    + catRows.map(([c, v, p]) => {
+  $("cats").innerHTML = catRows.map(([c, v, p]) => {
       let d = "";
-      if (showD) { const diff = v - p; d = Math.abs(diff) < 0.5 ? ' <small style="color:var(--mute)">=</small>' : ` <small style="color:var(${diff > 0 ? "--bad" : "--ok"});font-weight:700">${diff > 0 ? "+" : "−"}${eur0(Math.abs(diff))}</small>`; }
-      return `<div class="cat"><span>${esc(c)}</span><span><b>${eur0(v)}</b>${d}</span></div>`;
+      if (showD) { const diff = v - p; d = Math.abs(diff) < 0.5 ? '<small style="color:var(--mute);margin-right:8px">=</small>' : `<small style="color:var(${diff > 0 ? "--bad" : "--ok"});font-weight:700;margin-right:8px">${diff > 0 ? "+" : "−"}${eur0(Math.abs(diff))}</small>`; }
+      return `<div class="cat"><span>${esc(c)}</span><span>${d}<b>${eur0(v)}</b></span></div>`;
     }).join("") || "Aucune dépense ce mois-ci.";
 
   $("empty").textContent = "Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.";

@@ -693,8 +693,15 @@ function render() {
   curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); renderMut(); if (acctName) renderAcctPage();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
-  $("cats").innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1])
-    .map(([c, v]) => `<div class="cat"><span>${c}</span><b>${eur0(v)}</b></div>`).join("") || "Aucune dépense ce mois-ci.";
+  const pm = nmo(m, -1), prevCat = catTotals(pm), prevTot = Object.values(prevCat).reduce((t, v) => t + v, 0), showD = histLoaded && prevTot > 0;
+  const names = [...new Set([...Object.keys(byCat), ...(showD ? Object.keys(prevCat) : [])])];
+  const catRows = names.map(c => [c, byCat[c] || 0, prevCat[c] || 0]).sort((a, b) => b[1] - a[1] || b[2] - a[2]);
+  $("cats").innerHTML = (showD && catRows.length ? `<div style="font-size:.8rem;margin-bottom:6px">Écart par rapport à ${monthLabel(pm)} : <span style="color:var(--bad);font-weight:700">rouge = plus dépensé</span>, <span style="color:var(--ok);font-weight:700">vert = moins</span></div>` : "")
+    + catRows.map(([c, v, p]) => {
+      let d = "";
+      if (showD) { const diff = v - p; d = Math.abs(diff) < 0.5 ? ' <small style="color:var(--mute)">=</small>' : ` <small style="color:var(${diff > 0 ? "--bad" : "--ok"});font-weight:700">${diff > 0 ? "+" : "−"}${eur0(Math.abs(diff))}</small>`; }
+      return `<div class="cat"><span>${esc(c)}</span><span><b>${eur0(v)}</b>${d}</span></div>`;
+    }).join("") || "Aucune dépense ce mois-ci.";
 
   $("empty").textContent = "Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.";
   const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m);
@@ -1802,6 +1809,12 @@ const PIE_COL = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const accMatch = (x, name) => name === "Commun" ? (x.account !== "Julien" && x.account !== "Marie") : x.account === name;
 
+function catTotals(x) {
+  const c = {};
+  histExp.filter(e => e.month === x).forEach(e => { const k = e.category || "Autre"; c[k] = (c[k] || 0) + e.amount; });
+  fixed.forEach(f => { const p = priceAt(f, x) || 0; if (p) { const k = f.category || "Autre"; c[k] = (c[k] || 0) + p; } });
+  return c;
+}
 function acctMonthCats(name, x) {
   const c = {};
   histExp.filter(e => e.month === x && accMatch(e, name)).forEach(e => { const k = e.category || "Autre"; c[k] = (c[k] || 0) + e.amount; });

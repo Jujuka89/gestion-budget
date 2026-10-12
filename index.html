@@ -1474,6 +1474,7 @@ function renderAccBtns() {
 const BENEF = ["Julien", "Marie", "Kélia", "Milio"];
 const DEFAULT_CATS = [...$("category").options].map(o => o.value).filter(Boolean);
 const DEFAULT_SUBS = { "Santé": ["Ostéopathe", "Médecin", "Pharmacie"], "Fast Food": ["Pizza", "McDo", "Burger King", "Kebab / Tacos", "Autre"] };
+const QUICK_CATS = ["Boulangerie"];
 const PROTECTED_CATS = ["Santé", "Lentilles", "Jow", "Courses", "Autre"];
 let cats = [], catsLoaded = false, histLoaded = false, waitsLoaded = false, migratingSante = false;
 const catNames = () => cats.length ? cats.map(c => c.name) : DEFAULT_CATS;
@@ -1587,7 +1588,8 @@ function txUpdate() {
   $("txStep2").hidden = !exp;
   const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Santé", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId, hasSub = exp && cat !== "Santé" && cat !== "Lentilles" && catSubs(cat).length > 0, subSel = hasSub ? $("subType").value : "";
   $("txSub").hidden = !hasSub; if (hasSub) fillSub(cat);
-  $("label").hidden = lentNew || (hasSub && subSel !== "" && subSel !== "Autre"); $("tpendBox").hidden = lentNew; if (lentNew) $("tpend").checked = false;
+  const quick = exp && QUICK_CATS.includes(cat) && !wEditId;
+  $("label").hidden = lentNew || quick || (hasSub && subSel !== "" && subSel !== "Autre"); $("tpendBox").hidden = lentNew || quick; if (lentNew || quick) $("tpend").checked = false;
   $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
   if (flow) { if (soins) fillCare(); renderWho(); }
   const careOk = !flow || (careFor !== "" && (lent || $("careType").value !== ""));
@@ -1661,11 +1663,11 @@ $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), date = $("date").value;
   const cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
   const lent = !cred && category === "Lentilles", soins = (!cred && category === "Santé") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
-  const lentNew = lent && !wEditId, pend = $("tpend").checked && !lentNew;
+  const lentNew = lent && !wEditId, quick = !cred && QUICK_CATS.includes(category) && !wEditId, pend = $("tpend").checked && !lentNew && !quick;
   const subHas = !cred && category !== "Santé" && category !== "Lentilles" && catSubs(category).length > 0;
   const shop = subHas ? $("subType").value : "";
   if (subHas && !shop) return;
-  const label = lentNew ? `Lentilles (${forWho})` : (shop && shop !== "Autre" ? shop : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : (shop ? category : ""))));
+  const label = lentNew ? `Lentilles (${forWho})` : quick ? category : (shop && shop !== "Autre" ? shop : ($("label").value.trim() || (soins && care && forWho ? `${care} (${forWho})` : (shop ? category : ""))));
   if (soins && (!care || !forWho)) return;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;

@@ -610,7 +610,7 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   updateMonthTitle();
-  splitDirty = false; fillSplit(); topDirtyJ = false; topDirtyM = false; fillTopSal();
+  splitDirty = false; fillSplit(); topDirtyJ = false; topDirtyM = false; contribDraft = {}; fillTopSal();
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
     waitsLoaded = true; maybeMigrateSante(); render(); renderSplit(); renderWait();
@@ -1790,10 +1790,10 @@ function acctRem(m) {
   if (!(tot > 0)) return null;
   const isCom = x => x.account !== "Julien" && x.account !== "Marie";
   const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const common = commonNeed(m).total;
+  const sh = contribShares(m), common = sh ? sh.Julien + sh.Marie : commonNeed(m).total;
   const out = {};
   ["Julien", "Marie"].forEach(p => {
-    const c = common * a[p] / tot;
+    const c = sh ? sh[p] : common * a[p] / tot;
     const pf = fixed.filter(f => f.account === p).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
     const pe = expenses.filter(e => e.account === p).reduce((t, e) => t + e.amount, 0);
     out[p] = { c, sal: a[p], pf, pe, left: a[p] - c - pf - pe - pendCost(m, p) + incAcct(p, m) };
@@ -2077,7 +2077,7 @@ const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month")
 $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
-let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false;
+let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false, contribDraft = {};
 let estLoaded = false, flags = null, seeding = false;
 function maybeSeedJow() {
   if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
@@ -2102,11 +2102,12 @@ function commonNeed(m) {
   const incF = incAcct("Commun", m), payT = pays.reduce((t, w) => t + (w.amount || 0), 0), inT = ins.reduce((t, w) => t + (w.amount || 0), 0);
   return { fxC, pays, ins, incF, payT, inT, total: Math.max(0, fxC + payT - inT - incF) };
 }
+const roundUp100 = v => v > 0.004 ? Math.ceil(Math.round(v * 100) / 10000 - 1e-9) * 100 : 0;
 function contribShares(m) {
   const sp = salPair(m); if (!sp) return null;
   const tot = sp.Julien + sp.Marie; if (!(tot > 0)) return null;
-  const need = commonNeed(m).total, cJ = Math.round(need * sp.Julien / tot * 100) / 100;
-  return { Julien: cJ, Marie: Math.round((need - cJ) * 100) / 100, pct: { Julien: sp.Julien / tot, Marie: sp.Marie / tot } };
+  const need = commonNeed(m).total, cJ = Math.round(need * sp.Julien / tot * 100) / 100, cM = Math.round((need - cJ) * 100) / 100;
+  return { Julien: roundUp100(cJ), Marie: roundUp100(cM), rawJ: cJ, rawM: cM, need, pct: { Julien: sp.Julien / tot, Marie: sp.Marie / tot } };
 }
 function fillTopSal() {
   const m = $("month").value, d = salaries[m], ix = jmIdx(), si = salInfo(m);
@@ -2133,30 +2134,38 @@ $("topBtnJ").onclick = () => saveSal("Julien"); $("topBtnM").onclick = () => sav
 function renderContrib(m) {
   if (!m) return;
   const cn = commonNeed(m), sh = contribShares(m), fr = d => new Date(d).toLocaleDateString("fr-FR");
-  $("cbTotal").textContent = eur(cn.total);
+  const rounded = sh ? sh.Julien + sh.Marie : cn.total;
+  $("cbTotal").textContent = eur(rounded);
   const det = $("cbDet"); det.innerHTML = "";
   const line = (t, v, neg) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:1px 0;font-size:.85rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; det.append(d); };
   line("Dépenses fixes (compte commun)", cn.fxC);
   cn.pays.forEach(w => line("En attente · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
   cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
   if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
+  if (sh && rounded - cn.total > 0.004) line("Arrondi à la centaine supérieure", rounded - cn.total);
   const box = $("cbPeople"); box.innerHTML = "";
   if (!sh) { box.innerHTML = '<div class="mute" style="font-size:.85rem">Saisissez les salaires du mois pour calculer la part de chacun.</div>'; return; }
   ["Julien", "Marie"].forEach(p => {
     const required = sh[p], mine = transfers.filter(t => t.month === m && t.person === p).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     const done = mine.reduce((t, x) => t + x.amount, 0), rest = Math.round((required - done) * 100) / 100;
-    const row = document.createElement("div"); row.className = "cat"; row.style.cssText = "padding:6px 0;border-top:1px solid var(--line);align-items:center";
+    const row = document.createElement("div"); row.className = "cat"; row.style.cssText = "padding:6px 0;border-top:1px solid var(--line);align-items:center;gap:8px;flex-wrap:wrap";
     const left = document.createElement("span"); left.innerHTML = "<b></b> <small class='mute'></small>";
-    left.children[0].textContent = p; left.children[1].textContent = Math.round(sh.pct[p] * 100) + " %";
+    left.children[0].textContent = p; left.children[1].textContent = Math.round(sh.pct[p] * 100) + " % · à verser " + eur0(required) + (done > 0 ? " · déjà versé " + eur0(done) : "");
     const right = document.createElement("span"); right.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end";
-    const amt = document.createElement("b"); amt.textContent = eur(required); right.append(amt);
     if (rest > 0.5) {
-      const b = document.createElement("button"); b.textContent = done > 0 ? "✓ Valider " + eur(rest) : "✓ Valider"; b.setAttribute("aria-label", "Valider le versement de " + p);
+      const inp = document.createElement("input"); inp.type = "number"; inp.step = "0.01"; inp.min = "0"; inp.style.width = "110px";
+      inp.value = contribDraft[p] !== undefined ? contribDraft[p] : rest; inp.setAttribute("aria-label", "Montant versé par " + p);
+      inp.oninput = () => { contribDraft[p] = inp.value; };
+      const b = document.createElement("button"); b.textContent = "✓ Valider"; b.setAttribute("aria-label", "Valider le versement de " + p);
       b.onclick = async () => {
-        const ok = await askConfirm("Valider le versement", [`${p} → compte commun`, `Montant : ${eur(rest)}`, `Date : ${fr(today)}`, "Il sera ajouté aux transactions du compte commun."], "Valider");
-        if (ok) await addDoc(collection(db, "transfers"), { month: m, person: p, amount: rest, date: today, by: auth.currentUser.email, created: serverTimestamp() });
+        const val = parseFloat(inp.value);
+        if (!(val > 0)) return;
+        const ok = await askConfirm("Valider le versement", [`${p} → compte commun`, `Montant : ${eur(val)}`, `Date : ${fr(today)}`, "Il sera ajouté aux transactions du compte commun."], "Valider");
+        if (!ok) return;
+        delete contribDraft[p];
+        await addDoc(collection(db, "transfers"), { month: m, person: p, amount: Math.round(val * 100) / 100, date: today, by: auth.currentUser.email, created: serverTimestamp() });
       };
-      right.append(b);
+      right.append(inp, b);
     } else if (required > 0.5 || done > 0) {
       const ok = document.createElement("span"); ok.style.cssText = "color:var(--ok);font-weight:700"; ok.textContent = "✓ Versé"; right.append(ok);
     } else { const z = document.createElement("span"); z.className = "mute"; z.textContent = "rien à verser"; right.append(z); }
@@ -2167,7 +2176,6 @@ function renderContrib(m) {
       right.append(u);
     }
     row.append(left, right); box.append(row);
-    if (done > 0) { const d = document.createElement("div"); d.className = "mute"; d.style.cssText = "font-size:.8rem;margin:-2px 0 4px"; d.textContent = "Déjà versé : " + eur(done); box.append(d); }
   });
 }
 
@@ -2258,13 +2266,13 @@ function renderSplit() {
   if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   const nt = document.createElement("div"); nt.className = "mute"; nt.style.cssText = "font-size:.8rem;margin-top:6px";
-  nt.textContent = "Le compte commun sert aux dépenses fixes et aux paiements en attente de ce compte. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
+  nt.textContent = "Les montants à verser sont arrondis à la centaine supérieure. Le compte commun sert aux dépenses fixes et aux paiements en attente de ce compte. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
   $("sNeed").append(nt);
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];
   if (!(tot > 0)) { $("sBar").style.width = "0"; $("sRes").textContent = "Saisissez les salaires pour voir la répartition."; return; }
   if (estNote) { const p = document.createElement("div"); p.className = "mute"; p.textContent = estNote; $("sRes").append(p); }
-  const c0 = Math.round(need * a[0] / tot * 100) / 100, c = [c0, Math.round((need - c0) * 100) / 100];
+  const c0 = Math.round(need * a[0] / tot * 100) / 100, c = [c0, Math.round((need - c0) * 100) / 100].map(roundUp100);
   $("sBar").style.width = (a[0] / tot * 100) + "%";
   a.forEach((v, i) => {
     const box = document.createElement("div"); box.style.cssText = "border-top:1px solid var(--line);margin-top:12px;padding-top:10px";

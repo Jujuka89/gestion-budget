@@ -114,6 +114,19 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <div id="monthBig" role="heading" aria-level="2" style="font-size:2.2rem;font-weight:700;text-align:center;text-transform:capitalize;line-height:1.1"></div>
         <button class="ghost" id="mNext" aria-label="Mois suivant" style="font-size:1.4rem;padding:4px 14px">›</button>
       </div>
+      <section id="salBox">
+        <div class="cat" style="padding:0"><b>💶 Salaires du mois</b><span class="mute" id="topSalSt" style="font-size:.8rem"></span></div>
+        <div class="row" style="margin-top:8px">
+          <label class="mute" style="font-size:.8rem">Julien<input id="topSalJ" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
+          <label class="mute" style="font-size:.8rem">Marie<input id="topSalM" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
+          <button id="topSalBtn" style="align-self:flex-end">Valider</button>
+        </div>
+      </section>
+      <section id="contribBox">
+        <div class="cat" style="padding:0"><b>🏦 À verser sur le compte commun</b><b id="cbTotal"></b></div>
+        <div id="cbDet" style="margin-top:6px"></div>
+        <div id="cbPeople" style="margin-top:8px"></div>
+      </section>
       <section id="balBox">
         <div class="cat" style="padding:0"><b>⚖️ Équilibre des budgets</b></div>
         <div style="position:relative;height:28px;border-radius:10px;background:var(--line);margin:12px 0 4px;overflow:hidden">
@@ -594,7 +607,7 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   updateMonthTitle();
-  splitDirty = false; fillSplit();
+  splitDirty = false; fillSplit(); topDirty = false; fillTopSal();
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
     waitsLoaded = true; maybeMigrateSante(); render(); renderSplit(); renderWait();
@@ -614,6 +627,10 @@ function listen() {
   unsubs.push(snap(collection(db, "categories"), s => {
     cats = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
     catsLoaded = true; rebuildCatSelects(); renderCats(); maybeSeedCats(); maybeMigrateSante();
+  }));
+  unsubs.push(snap(collection(db, "transfers"), s => {
+    transfers = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderContrib($("month").value); if (acctName) renderAcctPage();
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -642,7 +659,7 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "salaries"), s => {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
-    fillSplit(); renderSplit(); render();
+    fillSplit(); fillTopSal(); renderSplit(); render();
   }));
   unsubs.push(snap(collection(db, "recurringIncome"), s => {
     incomes = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -690,7 +707,7 @@ function render() {
     if (i === 5) estEntries().filter(en => en.zone === "Commun").sort((a, b) => estAmt(b) - estAmt(a)).forEach(en => $("sum").append(miniGauge(en.category + (en.zone === "Commun" ? "" : " · " + en.zone), estActual(en), estAmt(en))));
   });
 
-  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); renderMut(); if (acctName) renderAcctPage();
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); renderMut(); renderContrib(m); fillTopSal(); if (acctName) renderAcctPage();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   const pm = nmo(m, -1), prevCat = catTotals(pm), prevTot = Object.values(prevCat).reduce((t, v) => t + v, 0), showD = histLoaded && prevTot > 0;
@@ -1776,7 +1793,7 @@ function acctRem(m) {
   if (!(tot > 0)) return null;
   const isCom = x => x.account !== "Julien" && x.account !== "Marie";
   const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const common = Math.max(0, fxC - incAcct("Commun", m));
+  const common = commonNeed(m).total;
   const out = {};
   ["Julien", "Marie"].forEach(p => {
     const c = common * a[p] / tot;
@@ -2002,13 +2019,14 @@ function renderAcctPage() {
   $("acBars").innerHTML = barsHtml(bars, `var(--${col}-b)`);
   renderSalChart(name, m, col);
   const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && accMatch(w, name));
-  const list = [...expenses.filter(e => accMatch(e, name)).map(e => ({ k: "e", x: e, date: e.date || "" })), ...credits.map(w => ({ k: "c", x: w, date: w.doneDate }))].sort((a, b) => b.date.localeCompare(a.date));
+  const list = [...expenses.filter(e => accMatch(e, name)).map(e => ({ k: "e", x: e, date: e.date || "" })), ...credits.map(w => ({ k: "c", x: w, date: w.doneDate })),
+    ...transfers.filter(t => t.month === m && (name === "Commun" || t.person === name)).map(t => ({ k: name === "Commun" ? "c" : "e", x: { label: name === "Commun" ? "Versement de " + t.person : "Versement vers le compte commun", amount: t.amount, meta: "Versement" }, date: t.date }))].sort((a, b) => b.date.localeCompare(a.date));
   $("acEmpty").hidden = list.length > 0; $("acList").innerHTML = "";
   list.forEach(({ k, x, date }) => {
     const li = document.createElement("li"), l = document.createElement("div"), a = document.createElement("span");
     l.innerHTML = "<div></div><div class='mute'></div>";
     l.children[0].textContent = x.label;
-    l.children[1].textContent = new Date(date).toLocaleDateString("fr-FR") + " · " + (k === "e" ? x.category : "Crédit");
+    l.children[1].textContent = new Date(date).toLocaleDateString("fr-FR") + " · " + (x.meta || (k === "e" ? x.category : "Crédit"));
     a.className = "amt"; a.textContent = (k === "e" ? "− " : "+ ") + eur(x.amount || 0);
     a.style.cssText = "font-weight:700;color:" + (k === "e" ? "var(--bad)" : "var(--ok)");
     li.append(l, a); $("acList").append(li);
@@ -2063,7 +2081,7 @@ const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month")
 $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
-let settles = [];
+let settles = [], transfers = [], topDirty = false;
 let estLoaded = false, flags = null, seeding = false;
 function maybeSeedJow() {
   if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
@@ -2079,6 +2097,78 @@ function salPair(m) {
   const av = salAvg(m);
   return av ? { Julien: av.a[ix.j] || 0, Marie: av.a[ix.m] || 0 } : null;
 }
+function commonNeed(m) {
+  const isCom = x => x.account !== "Julien" && x.account !== "Marie";
+  const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+  const pays = waits.filter(w => w.type === "pay" && !w.done && isCom(w) && wMonth(w) === m);
+  const ins = waits.filter(w => w.type === "in" && isCom(w) && wMonth(w) === m);
+  const incF = incAcct("Commun", m), payT = pays.reduce((t, w) => t + (w.amount || 0), 0), inT = ins.reduce((t, w) => t + (w.amount || 0), 0);
+  return { fxC, pays, ins, incF, payT, inT, total: Math.max(0, fxC + payT - inT - incF) };
+}
+function contribShares(m) {
+  const sp = salPair(m); if (!sp) return null;
+  const tot = sp.Julien + sp.Marie; if (!(tot > 0)) return null;
+  const need = commonNeed(m).total, cJ = Math.round(need * sp.Julien / tot * 100) / 100;
+  return { Julien: cJ, Marie: Math.round((need - cJ) * 100) / 100, pct: { Julien: sp.Julien / tot, Marie: sp.Marie / tot } };
+}
+function fillTopSal() {
+  if (topDirty) return;
+  const m = $("month").value, d = salaries[m], ix = jmIdx(), real = d && d.p && d.p.some(x => x.a > 0) ? d.p : null, sp = salPair(m);
+  $("topSalJ").value = real ? ((real[ix.j] || {}).a || "") : ""; $("topSalM").value = real ? ((real[ix.m] || {}).a || "") : "";
+  $("topSalJ").placeholder = !real && sp && sp.Julien ? "Moyenne " + eur0(sp.Julien) : "Salaire net (€)";
+  $("topSalM").placeholder = !real && sp && sp.Marie ? "Moyenne " + eur0(sp.Marie) : "Salaire net (€)";
+  $("topSalSt").textContent = real ? "✓ enregistrés" : (sp ? "moyenne utilisée en attendant" : "à saisir");
+  $("topSalSt").style.color = real ? "var(--ok)" : "var(--mute)";
+}
+$("topSalJ").oninput = () => { topDirty = true; }; $("topSalM").oninput = () => { topDirty = true; };
+$("topSalBtn").onclick = async () => {
+  const j = parseFloat($("topSalJ").value) || 0, mm = parseFloat($("topSalM").value) || 0, m = $("month").value;
+  if (!m || !(j > 0 || mm > 0)) return;
+  const ix = jmIdx(), p = []; p[ix.j] = { n: "Julien", a: j }; p[ix.m] = { n: "Marie", a: mm };
+  await setDoc(doc(db, "salaries", m), { p });
+  topDirty = false;
+};
+function renderContrib(m) {
+  if (!m) return;
+  const cn = commonNeed(m), sh = contribShares(m), fr = d => new Date(d).toLocaleDateString("fr-FR");
+  $("cbTotal").textContent = eur(cn.total);
+  const det = $("cbDet"); det.innerHTML = "";
+  const line = (t, v, neg) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:1px 0;font-size:.85rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; det.append(d); };
+  line("Dépenses fixes (compte commun)", cn.fxC);
+  cn.pays.forEach(w => line("En attente · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
+  cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
+  if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
+  const box = $("cbPeople"); box.innerHTML = "";
+  if (!sh) { box.innerHTML = '<div class="mute" style="font-size:.85rem">Saisissez les salaires du mois pour calculer la part de chacun.</div>'; return; }
+  ["Julien", "Marie"].forEach(p => {
+    const required = sh[p], mine = transfers.filter(t => t.month === m && t.person === p).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const done = mine.reduce((t, x) => t + x.amount, 0), rest = Math.round((required - done) * 100) / 100;
+    const row = document.createElement("div"); row.className = "cat"; row.style.cssText = "padding:6px 0;border-top:1px solid var(--line);align-items:center";
+    const left = document.createElement("span"); left.innerHTML = "<b></b> <small class='mute'></small>";
+    left.children[0].textContent = p; left.children[1].textContent = Math.round(sh.pct[p] * 100) + " %";
+    const right = document.createElement("span"); right.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end";
+    const amt = document.createElement("b"); amt.textContent = eur(required); right.append(amt);
+    if (rest > 0.5) {
+      const b = document.createElement("button"); b.textContent = done > 0 ? "✓ Valider " + eur(rest) : "✓ Valider"; b.setAttribute("aria-label", "Valider le versement de " + p);
+      b.onclick = async () => {
+        const ok = await askConfirm("Valider le versement", [`${p} → compte commun`, `Montant : ${eur(rest)}`, `Date : ${fr(today)}`, "Il sera ajouté aux transactions du compte commun."], "Valider");
+        if (ok) await addDoc(collection(db, "transfers"), { month: m, person: p, amount: rest, date: today, by: auth.currentUser.email, created: serverTimestamp() });
+      };
+      right.append(b);
+    } else if (required > 0.5 || done > 0) {
+      const ok = document.createElement("span"); ok.style.cssText = "color:var(--ok);font-weight:700"; ok.textContent = "✓ Versé"; right.append(ok);
+    } else { const z = document.createElement("span"); z.className = "mute"; z.textContent = "rien à verser"; right.append(z); }
+    if (mine.length) {
+      const u = document.createElement("button"); u.className = "ghost"; u.textContent = "↺"; u.setAttribute("aria-label", "Annuler le dernier versement de " + p);
+      const last = mine[mine.length - 1];
+      u.onclick = () => confirm("Annuler le versement de " + eur(last.amount) + " de " + p + " (" + fr(last.date) + ") ?") && deleteDoc(doc(db, "transfers", last.id));
+      right.append(u);
+    }
+    row.append(left, right); box.append(row);
+    if (done > 0) { const d = document.createElement("div"); d.className = "mute"; d.style.cssText = "font-size:.8rem;margin:-2px 0 4px"; d.textContent = "Déjà versé : " + eur(done); box.append(d); }
+  });
+}
+
 const isSharedExp = e => {
   if (e.account !== "Julien" && e.account !== "Marie") return false;
   if (e.planId || e.category === "Courses" || e.category === "Jow") return true;
@@ -2154,17 +2244,19 @@ function renderSplit() {
   $("s1a").placeholder = avg && avg.a[0] ? `Moyenne ${eur0(avg.a[0])} · saisir le salaire exact (€)` : "Salaire net (€)";
   $("s2a").placeholder = avg && avg.a[1] ? `Moyenne ${eur0(avg.a[1])} · saisir le salaire exact (€)` : "Salaire net (€)";
   const fx = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0);
-  const incCm = incAcct("Commun", m), need = Math.max(0, fx - incCm);
+  const cn = commonNeed(m), incCm = cn.incF, need = cn.total;
   let a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0], estNote = "";
   if (!(a[0] + a[1] > 0) && avg) { a = avg.a; estNote = `Estimation basée sur la moyenne des salaires de ${avg.n} mois précédent(s). Saisissez les salaires exacts pour valider.`; }
   const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du compte commun", eur(fx)));
+  if (cn.payT) $("sNeed").append(row("Paiements en attente (compte commun)", eur(cn.payT)));
+  if (cn.inT) $("sNeed").append(row("Crédits (compte commun, déduits)", "− " + eur(cn.inT)));
   if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   const nt = document.createElement("div"); nt.className = "mute"; nt.style.cssText = "font-size:.8rem;margin-top:6px";
-  nt.textContent = "Le compte commun ne sert qu'aux dépenses fixes. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
+  nt.textContent = "Le compte commun sert aux dépenses fixes et aux paiements en attente de ce compte. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
   $("sNeed").append(nt);
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];

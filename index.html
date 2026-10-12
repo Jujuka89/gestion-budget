@@ -115,11 +115,14 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <button class="ghost" id="mNext" aria-label="Mois suivant" style="font-size:1.4rem;padding:4px 14px">›</button>
       </div>
       <section id="salBox">
-        <div class="cat" style="padding:0"><b>💶 Salaires du mois</b><span class="mute" id="topSalSt" style="font-size:.8rem"></span></div>
-        <div class="row" style="margin-top:8px">
-          <label class="mute" style="font-size:.8rem">Julien<input id="topSalJ" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
-          <label class="mute" style="font-size:.8rem">Marie<input id="topSalM" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
-          <button id="topSalBtn" style="align-self:flex-end">Valider</button>
+        <div class="cat" style="padding:0"><b>💶 Salaires du mois</b></div>
+        <div class="row" style="margin-top:8px;align-items:flex-end">
+          <label class="mute" style="font-size:.8rem">Julien <span id="topStJ"></span><input id="topSalJ" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
+          <button id="topBtnJ" style="flex:0 0 auto">Valider</button>
+        </div>
+        <div class="row" style="margin-top:8px;align-items:flex-end">
+          <label class="mute" style="font-size:.8rem">Marie <span id="topStM"></span><input id="topSalM" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
+          <button id="topBtnM" style="flex:0 0 auto">Valider</button>
         </div>
       </section>
       <section id="contribBox">
@@ -607,7 +610,7 @@ function listen() {
   const m = $("month").value;
   if (!m) return;
   updateMonthTitle();
-  splitDirty = false; fillSplit(); topDirty = false; fillTopSal();
+  splitDirty = false; fillSplit(); topDirtyJ = false; topDirtyM = false; fillTopSal();
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
     waitsLoaded = true; maybeMigrateSante(); render(); renderSplit(); renderWait();
@@ -682,10 +685,9 @@ function render() {
   const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
   const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
   const spent = expenses.reduce((t, e) => t + e.amount, 0) + fixedTotal;
-  const real = ((salaries[m] && salaries[m].p) || []).reduce((t, x) => t + (x.a || 0), 0);
-  const av = real > 0 ? null : salAvg(m);
+  const si = salInfo(m), av = si && (si.estJ || si.estM) ? true : null;
   const incM = incFixed(m);
-  const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incM;
+  const sal = (si ? si.Julien + si.Marie : 0) + incM;
   const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
   const pl = planFor(m), es = estFor(), pd = pendSum(m, "all");
   const other = spent - fixedTotal - food - pl.actual - es.actual;
@@ -1287,9 +1289,8 @@ function renderFuture() {
   const estTot = estTotalAmt();
   for (let k = 1; k <= 3; k++) {
     const x = nmo(m, k);
-    const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
-    const av = real > 0 ? null : salAvg(x);
-    const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
+    const si = salInfo(x), real = si && !si.estJ && !si.estM ? 1 : 0;
+    const sal = (si ? si.Julien + si.Marie : 0) + incFixed(x);
     const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + planFor(x).total + estTot + pendCost(x);
     const d = document.createElement("div"); d.className = "fut";
     d.innerHTML = "<div class='mute'></div><b></b><div class='mute' style='font-size:.75rem'></div>";
@@ -1313,9 +1314,8 @@ function renderFuture() {
 }
 
 function projRem(x) {
-  const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
-  const av = real > 0 ? null : salAvg(x);
-  const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
+  const si = salInfo(x);
+  const sal = (si ? si.Julien + si.Marie : 0) + incFixed(x);
   if (!(sal > 0)) return null;
   const estTot = estTotalAmt();
   return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + planFor(x).total + estTot + pendCost(x));
@@ -1785,10 +1785,7 @@ function jmIdx() {
   return { j: 0, m: 1 };
 }
 function acctRem(m) {
-  const d = salaries[m], real = d && d.p && d.p.some(x => x.a > 0) ? d.p : null, ix = jmIdx();
-  let a;
-  if (real) a = { Julien: (real[ix.j] || {}).a || 0, Marie: (real[ix.m] || {}).a || 0 };
-  else { const av = salAvg(m); if (!av) return null; a = { Julien: av.a[ix.j] || 0, Marie: av.a[ix.m] || 0 }; }
+  const a = salPair(m); if (!a) return null;
   const tot = a.Julien + a.Marie;
   if (!(tot > 0)) return null;
   const isCom = x => x.account !== "Julien" && x.account !== "Marie";
@@ -1945,7 +1942,7 @@ function renderSalChart(name, m, col) {
   const yr = m.slice(0, 4), items = []; let total = 0, est = 0, n = 0;
   for (let k = 1; k <= 12; k++) {
     const x = yr + "-" + String(k).padStart(2, "0"), d = salaries[x];
-    const real = !!(d && d.p && d.p.some(a => a.a > 0)), sp = salPair(x);
+    const si = salInfo(x), sp = si, real = si ? (name === "Commun" ? !si.estJ && !si.estM : (name === "Julien" ? !si.estJ : !si.estM)) : false;
     const v = sp ? (name === "Commun" ? sp.Julien + sp.Marie : sp[name]) : 0;
     const lab = new Date(x + "-01").toLocaleDateString("fr-FR", { month: "short" }).replace(".", "");
     items.push([lab, v, !real && v > 0]);
@@ -2034,9 +2031,8 @@ function renderAcctPage() {
 }
 
 function monthParts(x) {
-  const real = ((salaries[x] && salaries[x].p) || []).reduce((t, v) => t + (v.a || 0), 0);
-  const av = real > 0 ? null : salAvg(x);
-  const sal = (real > 0 ? real : av ? av.a[0] + av.a[1] : 0) + incFixed(x);
+  const si = salInfo(x);
+  const sal = (si ? si.Julien + si.Marie : 0) + incFixed(x);
   if (!(sal > 0)) return null;
   const sum = l => l.reduce((t, e) => t + e.amount, 0);
   const E = histExp.filter(e => e.month === x), S = sum(E);
@@ -2081,7 +2077,7 @@ const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month")
 $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
-let settles = [], transfers = [], topDirty = false;
+let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false;
 let estLoaded = false, flags = null, seeding = false;
 function maybeSeedJow() {
   if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
@@ -2091,12 +2087,13 @@ function maybeSeedJow() {
   ops.push(setDoc(doc(db, "settings", "flags"), { jowEstimate: true }, { merge: true }));
   Promise.all(ops).catch(e => { seeding = false; console.error(e); });
 }
-function salPair(m) {
-  const d = salaries[m], real = d && d.p && d.p.some(x => x.a > 0) ? d.p : null, ix = jmIdx();
-  if (real) return { Julien: (real[ix.j] || {}).a || 0, Marie: (real[ix.m] || {}).a || 0 };
-  const av = salAvg(m);
-  return av ? { Julien: av.a[ix.j] || 0, Marie: av.a[ix.m] || 0 } : null;
+function salInfo(x) {
+  const d = salaries[x], ix = jmIdx(), av = salAvg(x), got = i => ((d && d.p && d.p[i]) || {}).a || 0;
+  const rj = got(ix.j), rm = got(ix.m), J = rj > 0 ? rj : (av ? av.a[ix.j] || 0 : 0), M = rm > 0 ? rm : (av ? av.a[ix.m] || 0 : 0);
+  if (!(J > 0 || M > 0)) return null;
+  return { Julien: J, Marie: M, estJ: !(rj > 0) && J > 0, estM: !(rm > 0) && M > 0 };
 }
+function salPair(m) { const i = salInfo(m); return i ? { Julien: i.Julien, Marie: i.Marie } : null; }
 function commonNeed(m) {
   const isCom = x => x.account !== "Julien" && x.account !== "Marie";
   const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
@@ -2112,22 +2109,27 @@ function contribShares(m) {
   return { Julien: cJ, Marie: Math.round((need - cJ) * 100) / 100, pct: { Julien: sp.Julien / tot, Marie: sp.Marie / tot } };
 }
 function fillTopSal() {
-  if (topDirty) return;
-  const m = $("month").value, d = salaries[m], ix = jmIdx(), real = d && d.p && d.p.some(x => x.a > 0) ? d.p : null, sp = salPair(m);
-  $("topSalJ").value = real ? ((real[ix.j] || {}).a || "") : ""; $("topSalM").value = real ? ((real[ix.m] || {}).a || "") : "";
-  $("topSalJ").placeholder = !real && sp && sp.Julien ? "Moyenne " + eur0(sp.Julien) : "Salaire net (€)";
-  $("topSalM").placeholder = !real && sp && sp.Marie ? "Moyenne " + eur0(sp.Marie) : "Salaire net (€)";
-  $("topSalSt").textContent = real ? "✓ enregistrés" : (sp ? "moyenne utilisée en attendant" : "à saisir");
-  $("topSalSt").style.color = real ? "var(--ok)" : "var(--mute)";
+  const m = $("month").value, d = salaries[m], ix = jmIdx(), si = salInfo(m);
+  const got = i => ((d && d.p && d.p[i]) || {}).a || 0;
+  [["J", "Julien", ix.j], ["M", "Marie", ix.m]].forEach(([k, name, i]) => {
+    const saved = got(i), est = si ? si[name] : 0;
+    if (!(k === "J" ? topDirtyJ : topDirtyM)) $("topSal" + k).value = saved > 0 ? saved : "";
+    $("topSal" + k).placeholder = saved > 0 ? "Salaire net (€)" : (est > 0 ? "Moyenne " + eur0(est) : "Salaire net (€)");
+    $("topSt" + k).textContent = saved > 0 ? "· ✓ enregistré" : (est > 0 ? "· moyenne utilisée" : "· à saisir");
+    $("topSt" + k).style.color = saved > 0 ? "var(--ok)" : "var(--mute)";
+  });
 }
-$("topSalJ").oninput = () => { topDirty = true; }; $("topSalM").oninput = () => { topDirty = true; };
-$("topSalBtn").onclick = async () => {
-  const j = parseFloat($("topSalJ").value) || 0, mm = parseFloat($("topSalM").value) || 0, m = $("month").value;
-  if (!m || !(j > 0 || mm > 0)) return;
-  const ix = jmIdx(), p = []; p[ix.j] = { n: "Julien", a: j }; p[ix.m] = { n: "Marie", a: mm };
+$("topSalJ").oninput = () => { topDirtyJ = true; }; $("topSalM").oninput = () => { topDirtyM = true; };
+async function saveSal(name) {
+  const m = $("month").value, ix = jmIdx(), d = salaries[m], cur = (d && d.p) || [];
+  const val = parseFloat($(name === "Julien" ? "topSalJ" : "topSalM").value) || 0;
+  if (!m || !(val > 0)) return;
+  const p = [0, 1].map(i => cur[i] && cur[i].a > 0 ? { n: cur[i].n || (i === ix.j ? "Julien" : "Marie"), a: cur[i].a } : { n: i === ix.j ? "Julien" : "Marie", a: 0 });
+  p[name === "Julien" ? ix.j : ix.m] = { n: name, a: val };
   await setDoc(doc(db, "salaries", m), { p });
-  topDirty = false;
-};
+  if (name === "Julien") topDirtyJ = false; else topDirtyM = false;
+}
+$("topBtnJ").onclick = () => saveSal("Julien"); $("topBtnM").onclick = () => saveSal("Marie");
 function renderContrib(m) {
   if (!m) return;
   const cn = commonNeed(m), sh = contribShares(m), fr = d => new Date(d).toLocaleDateString("fr-FR");
@@ -2228,15 +2230,15 @@ function fillSplit() {
   let src = d;
   if (!d) { const ks = Object.keys(salaries).filter(k => k < m).sort(); if (ks.length) src = salaries[ks[ks.length - 1]]; }
   const p = (src && src.p) || [];
-  $("s1n").value = p[0] ? p[0].n : ""; $("s1a").value = d && p[0] ? p[0].a : "";
-  $("s2n").value = p[1] ? p[1].n : ""; $("s2a").value = d && p[1] ? p[1].a : "";
+  $("s1n").value = p[0] ? p[0].n : ""; $("s1a").value = d && p[0] && p[0].a ? p[0].a : "";
+  $("s2n").value = p[1] ? p[1].n : ""; $("s2a").value = d && p[1] && p[1].a ? p[1].a : "";
   $("sHint").textContent = d ? "Salaires enregistrés pour ce mois." : "Salaires de ce mois à saisir : ils changent chaque mois.";
   renderSplit();
 }
 
 function renderSplit() {
   const m = $("month").value;
-  const have = !!(salaries[m] && salaries[m].p && salaries[m].p.some(x => x.a > 0));
+  const si0 = salInfo(m), have = !!(si0 && !si0.estJ && !si0.estM);
   const due = salLoaded && !have && m <= today.slice(0, 7), avg = salAvg(m);
   $("sNotice").hidden = !due;
   $("sNotice").firstElementChild.textContent = avg ? "⚠️ Pensez à saisir les salaires exacts de ce mois : en attendant, la moyenne des mois précédents est utilisée pour les calculs." : "⚠️ Les salaires de ce mois ne sont pas encore saisis : le calcul du reste et de la répartition n'est pas possible.";
@@ -2246,7 +2248,7 @@ function renderSplit() {
   const fx = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0);
   const cn = commonNeed(m), incCm = cn.incF, need = cn.total;
   let a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0], estNote = "";
-  if (!(a[0] + a[1] > 0) && avg) { a = avg.a; estNote = `Estimation basée sur la moyenne des salaires de ${avg.n} mois précédent(s). Saisissez les salaires exacts pour valider.`; }
+  if (avg && (!(a[0] > 0) || !(a[1] > 0))) { a = a.map((v, i) => v > 0 ? v : (avg.a[i] || 0)); estNote = `Salaire manquant remplacé par la moyenne des ${avg.n} mois précédent(s). Saisissez le salaire exact pour valider.`; }
   const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";

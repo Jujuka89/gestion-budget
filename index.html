@@ -274,7 +274,9 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <button class="ghost" id="btnAcctBack" style="margin-top:16px">← Retour</button>
     <section id="acSum">
       <h2 id="acTitle"></h2>
-      <div class="mute">Il reste ce mois-ci</div>
+      <div class="mute">💰 Argent sur le compte (fin de mois)</div>
+      <div class="big" id="acReal"></div>
+      <div class="mute" style="margin-top:8px">Il reste ce mois-ci</div>
       <div class="big" id="acLeft"></div>
       <div id="acInfo" style="margin-top:8px"></div>
     </section>
@@ -1835,15 +1837,16 @@ function acctRem(m) {
 }
 function renderAcct(m) {
   const box = $("acctBox"); box.innerHTML = "";
-  const r = acctRem(m); if (!r) return;
+  const r = acctRem(m) || {};
   [["Julien", "bleu"], ["Marie", "rose"], ["Commun", "blanc"]].forEach(([p, col]) => {
     const d = document.createElement("div");
     d.style.cssText = `flex:1 1 30%;min-width:0;border-radius:10px;padding:10px;background:var(--${col});border:1px solid var(--line);border-left:4px solid var(--${col}-b)`;
     d.innerHTML = "<div class='mute'></div><b style='display:block;font-size:1.3rem;font-variant-numeric:tabular-nums'></b><div class='mute' style='font-size:.75rem'></div>";
     d.children[0].textContent = "Compte " + p + " ›"; d.style.cursor = "pointer"; d.tabIndex = 0; d.setAttribute("role", "button"); d.onclick = () => openAcct(p); d.onkeydown = e => { if (e.key === "Enter") openAcct(p); };
-    d.children[1].textContent = eur0(r[p].left);
-    if (r[p].left < 0) d.children[1].style.color = "var(--bad)";
-    d.children[2].textContent = p === "Commun" ? "alimenté par vos 2 parts (" + eur0(r[p].c) + ")" : "après sa part du compte commun (" + eur0(r[p].c) + ")";
+    const bal = acctBalance(p, m), x = r[p];
+    d.children[1].textContent = "💰 " + eur0(bal);
+    if (bal < 0) d.children[1].style.color = "var(--bad)";
+    d.children[2].textContent = "Argent sur le compte" + (x ? " · reste du mois " + eur0(x.left) + (p === "Commun" ? "" : " · part commune " + eur0(x.c)) : "");
     box.append(d);
   });
 }
@@ -2035,7 +2038,7 @@ function renderAcctPage() {
     d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)"; d.children[1].style.fontWeight = 400;
     $("acInfo").append(d);
   });
-  { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "border-top:1px solid var(--line);margin-top:6px;padding-top:6px;font-weight:700"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = "Solde estimé du compte (cumul, fin de mois)"; d.children[1].textContent = eur0(acctBalance(name, m)); $("acInfo").append(d); }
+  { const bal = acctBalance(name, m); $("acReal").textContent = eur0(bal); $("acReal").style.color = bal < 0 ? "var(--bad)" : "var(--ink)"; }
   $("acPie1").innerHTML = pieHtml(acctMonthCats(name, m));
   const all = {}, bars = [];
   for (let k = -11; k <= 0; k++) {

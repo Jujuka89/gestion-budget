@@ -116,11 +116,11 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       </div>
       <section id="salBox">
         <div class="cat" style="padding:0"><b>💶 Salaires du mois</b></div>
-        <div class="row" style="margin-top:8px;align-items:flex-end">
+        <div id="topRowJ" class="row" style="margin-top:8px;align-items:flex-end">
           <label class="mute" style="font-size:.8rem">Julien <span id="topStJ"></span><input id="topSalJ" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
           <button id="topBtnJ" style="flex:0 0 auto">Valider</button>
         </div>
-        <div class="row" style="margin-top:8px;align-items:flex-end">
+        <div id="topRowM" class="row" style="margin-top:8px;align-items:flex-end">
           <label class="mute" style="font-size:.8rem">Marie <span id="topStM"></span><input id="topSalM" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
           <button id="topBtnM" style="flex:0 0 auto">Valider</button>
         </div>
@@ -460,7 +460,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </div>
   <footer style="margin-top:28px;padding-top:14px;border-top:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
     <label class="mute" style="display:flex;gap:8px;align-items:center">Mois affiché <input id="month" type="month" aria-label="Mois"></label>
-    <button class="ghost" id="btnOut">Déconnexion</button>
+    <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" id="btnMe">Profil</button><button class="ghost" id="btnOut">Déconnexion</button></span>
   </footer>
 </div>
 
@@ -534,6 +534,25 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   <div class="row" style="margin-top:14px"><button id="infoOk">OK</button></div>
 </dialog>
 
+<dialog id="meDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 style="margin-top:0">Qui êtes-vous ?</h2>
+  <div class="mute">Pour vous proposer, chaque début de mois, la saisie de votre salaire et votre versement sur le compte commun.</div>
+  <div class="row" style="margin-top:14px"><button id="meJ">Julien</button><button id="meM">Marie</button></div>
+</dialog>
+<dialog id="salDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 id="salDlgTitle" style="margin-top:0"></h2>
+  <div class="mute">Saisissez votre salaire net du mois.</div>
+  <input id="salDlgAmt" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%;margin-top:12px">
+  <div class="row" style="margin-top:14px"><button id="salDlgOk">Valider</button><button class="ghost" id="salDlgLater">Plus tard</button></div>
+</dialog>
+<dialog id="cbDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(94vw,420px);max-height:90vh;overflow:auto">
+  <h2 id="cbDlgTitle" style="margin-top:0"></h2>
+  <div id="cbDlgDet"></div>
+  <div class="mute" style="margin-top:12px;font-size:.85rem">Montant versé (€)</div>
+  <input id="cbDlgAmt" type="number" step="0.01" min="0" style="width:100%">
+  <div class="row" style="margin-top:14px"><button id="cbDlgOk">✓ Valider</button><button class="ghost" id="cbDlgLater">Plus tard</button></div>
+</dialog>
+
 </main>
 
 <script type="module">
@@ -567,7 +586,7 @@ onAuthStateChanged(auth, user => {
   $("login").hidden = !!user;
   $("app").hidden = !user;
   unsubs.forEach(u => u()); unsubs = [];
-  $("accessErr").hidden = true;
+  $("accessErr").hidden = true; popupsShown = false; me = "";
   if (user) $("btnOut").textContent = "Déconnexion (" + (user.email || "").split("@")[0] + ")";
   if (user) listen();
 });
@@ -613,10 +632,11 @@ function listen() {
   splitDirty = false; fillSplit(); topDirtyJ = false; topDirtyM = false; contribDraft = {}; fillTopSal();
   unsubs.push(snap(collection(db, "pending"), s => {
     waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
-    waitsLoaded = true; maybeMigrateSante(); render(); renderSplit(); renderWait();
+    waitsLoaded = true; maybeMigrateSante(); render(); renderSplit(); renderWait(); checkPopups();
   }));
   unsubs.push(snap(collection(db, "settings"), s => {
-    flags = {}; s.docs.forEach(d => { if (d.id === "flags") flags = d.data(); });
+    flags = {}; profiles = {}; s.docs.forEach(d => { if (d.id === "flags") flags = d.data(); if (d.id === "profiles") profiles = d.data(); });
+    if (auth.currentUser) { me = profiles[emailKey(auth.currentUser.email)] || me; updateMeBtn(); } checkPopups();
     maybeSeedJow(); maybeSeedCats(); maybeMigrateSante(); renderEst();
   }));
   unsubs.push(snap(collection(db, "settlements"), s => {
@@ -632,7 +652,7 @@ function listen() {
     catsLoaded = true; rebuildCatSelects(); renderCats(); maybeSeedCats(); maybeMigrateSante();
   }));
   unsubs.push(snap(collection(db, "transfers"), s => {
-    transfers = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    transfers = s.docs.map(d => ({ id: d.id, ...d.data() })); transfersLoaded = true; checkPopups();
     renderContrib($("month").value); if (acctName) renderAcctPage();
   }));
   unsubs.push(snap(collection(db, "gifts"), s => {
@@ -662,14 +682,14 @@ function listen() {
   }));
   unsubs.push(snap(collection(db, "salaries"), s => {
     salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
-    fillSplit(); fillTopSal(); renderSplit(); render();
+    fillSplit(); fillTopSal(); renderSplit(); render(); checkPopups();
   }));
   unsubs.push(snap(collection(db, "recurringIncome"), s => {
     incomes = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render(); renderSplit();
   }));
   unsubs.push(snap(collection(db, "recurring"), s => {
-    fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé", Transport: "Autre" })[o.category] || o.category; return o; });
+    fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé", Transport: "Autre" })[o.category] || o.category; return o; }); fixedLoaded = true; checkPopups();
     render(); renderSplit();
   }));
   unsubs.push(snap(query(collection(db, "expenses"), where("month", "==", m)), s => {
@@ -2017,7 +2037,7 @@ function renderAcctPage() {
   renderSalChart(name, m, col);
   const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && accMatch(w, name));
   const list = [...expenses.filter(e => accMatch(e, name)).map(e => ({ k: "e", x: e, date: e.date || "" })), ...credits.map(w => ({ k: "c", x: w, date: w.doneDate })),
-    ...transfers.filter(t => t.month === m && (name === "Commun" || t.person === name)).map(t => ({ k: name === "Commun" ? "c" : "e", x: { label: name === "Commun" ? "Versement de " + t.person : "Versement vers le compte commun", amount: t.amount, meta: "Versement" }, date: t.date }))].sort((a, b) => b.date.localeCompare(a.date));
+    ...transfers.filter(t => t.month === m && (name === "Commun" || t.person === name)).map(t => ({ k: name === "Commun" ? "c" : "e", x: { label: name === "Commun" ? "Versement de " + t.person : "Versement vers le compte commun", amount: t.amount, meta: "Versement", tid: t.id }, date: t.date }))].sort((a, b) => b.date.localeCompare(a.date));
   $("acEmpty").hidden = list.length > 0; $("acList").innerHTML = "";
   list.forEach(({ k, x, date }) => {
     const li = document.createElement("li"), l = document.createElement("div"), a = document.createElement("span");
@@ -2026,7 +2046,11 @@ function renderAcctPage() {
     l.children[1].textContent = new Date(date).toLocaleDateString("fr-FR") + " · " + (x.meta || (k === "e" ? x.category : "Crédit"));
     a.className = "amt"; a.textContent = (k === "e" ? "− " : "+ ") + eur(x.amount || 0);
     a.style.cssText = "font-weight:700;color:" + (k === "e" ? "var(--bad)" : "var(--ok)");
-    li.append(l, a); $("acList").append(li);
+    if (x.tid) {
+      const u = document.createElement("button"); u.className = "ghost"; u.textContent = "Annuler"; u.onclick = () => confirm("Annuler ce versement ?") && deleteDoc(doc(db, "transfers", x.tid));
+      const w = document.createElement("span"); w.style.cssText = "display:flex;gap:8px;align-items:center"; w.append(a, u); li.append(l, w);
+    } else li.append(l, a);
+    $("acList").append(li);
   });
 }
 
@@ -2077,7 +2101,7 @@ const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month")
 $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
-let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false, contribDraft = {};
+let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false, contribDraft = {}, profiles = null, me = "", transfersLoaded = false, fixedLoaded = false, popupsShown = false;
 let estLoaded = false, flags = null, seeding = false;
 function maybeSeedJow() {
   if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
@@ -2119,16 +2143,22 @@ function fillTopSal() {
     $("topSt" + k).textContent = saved > 0 ? "· ✓ enregistré" : (est > 0 ? "· moyenne utilisée" : "· à saisir");
     $("topSt" + k).style.color = saved > 0 ? "var(--ok)" : "var(--mute)";
   });
+  const showJ = got(ix.j) <= 0, showM = got(ix.m) <= 0, upto = m <= today.slice(0, 7);
+  $("topRowJ").hidden = !showJ; $("topRowM").hidden = !showM; $("salBox").hidden = !upto || !(showJ || showM);
 }
 $("topSalJ").oninput = () => { topDirtyJ = true; }; $("topSalM").oninput = () => { topDirtyM = true; };
-async function saveSal(name) {
-  const m = $("month").value, ix = jmIdx(), d = salaries[m], cur = (d && d.p) || [];
-  const val = parseFloat($(name === "Julien" ? "topSalJ" : "topSalM").value) || 0;
+async function saveSalValue(name, val, m) {
   if (!m || !(val > 0)) return;
+  const ix = jmIdx(), d = salaries[m], cur = (d && d.p) || [];
   const p = [0, 1].map(i => cur[i] && cur[i].a > 0 ? { n: cur[i].n || (i === ix.j ? "Julien" : "Marie"), a: cur[i].a } : { n: i === ix.j ? "Julien" : "Marie", a: 0 });
   p[name === "Julien" ? ix.j : ix.m] = { n: name, a: val };
+  salaries[m] = { p };
   await setDoc(doc(db, "salaries", m), { p });
-  if (name === "Julien") topDirtyJ = false; else topDirtyM = false;
+}
+async function saveSal(name) {
+  const val = parseFloat($(name === "Julien" ? "topSalJ" : "topSalM").value) || 0;
+  await saveSalValue(name, val, $("month").value);
+  if (val > 0) { if (name === "Julien") topDirtyJ = false; else topDirtyM = false; }
 }
 $("topBtnJ").onclick = () => saveSal("Julien"); $("topBtnM").onclick = () => saveSal("Marie");
 function renderContrib(m) {
@@ -2143,11 +2173,12 @@ function renderContrib(m) {
   cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
   if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
   if (sh && rounded - cn.total > 0.004) line("Arrondi à la centaine supérieure", rounded - cn.total);
-  const box = $("cbPeople"); box.innerHTML = "";
+  const box = $("cbPeople"); box.innerHTML = ""; let pending = 0; $("contribBox").hidden = m > today.slice(0, 7);
   if (!sh) { box.innerHTML = '<div class="mute" style="font-size:.85rem">Saisissez les salaires du mois pour calculer la part de chacun.</div>'; return; }
   ["Julien", "Marie"].forEach(p => {
     const required = sh[p], mine = transfers.filter(t => t.month === m && t.person === p).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     const done = mine.reduce((t, x) => t + x.amount, 0), rest = Math.round((required - done) * 100) / 100;
+    if (!(rest > 0.5)) return; pending++;
     const row = document.createElement("div"); row.className = "cat"; row.style.cssText = "padding:6px 0;border-top:1px solid var(--line);align-items:center;gap:8px;flex-wrap:wrap";
     const left = document.createElement("span"); left.innerHTML = "<b></b> <small class='mute'></small>";
     left.children[0].textContent = p; left.children[1].textContent = Math.round(sh.pct[p] * 100) + " % · à verser " + eur0(required) + (done > 0 ? " · déjà versé " + eur0(done) : "");
@@ -2177,6 +2208,89 @@ function renderContrib(m) {
     }
     row.append(left, right); box.append(row);
   });
+  if (!pending) $("contribBox").hidden = true;
+}
+
+const emailKey = e => (e || "").toLowerCase().replace(/[.#$\[\]\/]/g, "_");
+const snoozeKey = (step, m, p) => "later_" + step + "_" + m + "_" + p;
+const isSnoozed = k => { try { return localStorage.getItem(k) === "1"; } catch (e) { return false; } };
+const snooze = k => { try { localStorage.setItem(k, "1"); } catch (e) {} };
+const updateMeBtn = () => { $("btnMe").textContent = "Profil : " + (me || "à choisir"); };
+$("btnMe").onclick = () => askWho();
+function askWho() {
+  return new Promise(res => {
+    const dlg = $("meDlg");
+    const pick = async p => {
+      const k = emailKey(auth.currentUser.email);
+      await setDoc(doc(db, "settings", "profiles"), { [k]: p }, { merge: true });
+      profiles = { ...(profiles || {}), [k]: p }; me = p; updateMeBtn(); dlg.close(); res(p);
+    };
+    $("meJ").onclick = () => pick("Julien"); $("meM").onclick = () => pick("Marie");
+    dlg.oncancel = () => res("");
+    dlgShow(dlg);
+  });
+}
+function askSalary(person, month) {
+  return new Promise(res => {
+    const dlg = $("salDlg"), sp = salPair(month);
+    $("salDlgTitle").textContent = "Salaire de " + monthLabel(month) + " · " + person;
+    $("salDlgAmt").value = ""; $("salDlgAmt").placeholder = sp && sp[person] ? "Moyenne " + eur0(sp[person]) : "Salaire net (€)";
+    const done = v => { dlg.close(); res(v); };
+    $("salDlgOk").onclick = () => { const v = parseFloat($("salDlgAmt").value); if (!(v > 0)) { $("salDlgAmt").focus(); return; } done(v); };
+    $("salDlgAmt").onkeydown = e => { if (e.key === "Enter") $("salDlgOk").click(); };
+    $("salDlgLater").onclick = () => done(null);
+    dlg.oncancel = () => res(null);
+    dlgShow(dlg); $("salDlgAmt").focus();
+  });
+}
+function askContrib(person, month, sh, cn, rest) {
+  return new Promise(res => {
+    const dlg = $("cbDlg"), det = $("cbDlgDet"), fr = d => new Date(d).toLocaleDateString("fr-FR");
+    $("cbDlgTitle").textContent = person + " · à verser sur le compte commun";
+    det.innerHTML = "";
+    const line = (t, v, neg, bold) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:2px 0;font-size:.9rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); if (!bold) d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; else d.style.fontWeight = "700"; det.append(d); };
+    line("Dépenses fixes (compte commun)", cn.fxC);
+    cn.pays.forEach(w => line("En attente · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
+    cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
+    if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
+    const tot = sh.Julien + sh.Marie;
+    if (tot - cn.total > 0.004) line("Arrondi à la centaine supérieure", tot - cn.total);
+    line("Total à répartir", tot, false, true);
+    line("Votre part (" + Math.round(sh.pct[person] * 100) + " %, arrondie)", sh[person], false, true);
+    $("cbDlgAmt").value = rest;
+    const done = v => { dlg.close(); res(v); };
+    $("cbDlgOk").onclick = () => { const v = parseFloat($("cbDlgAmt").value); if (!(v > 0)) { $("cbDlgAmt").focus(); return; } done(v); };
+    $("cbDlgLater").onclick = () => done(null);
+    dlg.oncancel = () => res(null);
+    dlgShow(dlg);
+  });
+}
+async function monthPopups() {
+  const cur = today.slice(0, 7), ix = jmIdx(), d = salaries[cur];
+  const mine = (me === "Julien" ? ix.j : ix.m), saved = ((d && d.p && d.p[mine]) || {}).a || 0;
+  if (!(saved > 0)) {
+    const k = snoozeKey("sal", cur, me);
+    if (isSnoozed(k)) return;
+    const v = await askSalary(me, cur);
+    if (v === null) { snooze(k); return; }
+    await saveSalValue(me, v, cur);
+  }
+  const sh = contribShares(cur); if (!sh) return;
+  const done = transfers.filter(t => t.month === cur && t.person === me).reduce((t, x) => t + x.amount, 0), rest = Math.round((sh[me] - done) * 100) / 100;
+  const k2 = snoozeKey("cb", cur, me);
+  if (!(rest > 0.5) || isSnoozed(k2)) return;
+  const v = await askContrib(me, cur, sh, commonNeed(cur), rest);
+  if (v === null) { snooze(k2); return; }
+  await addDoc(collection(db, "transfers"), { month: cur, person: me, amount: Math.round(v * 100) / 100, date: today, by: auth.currentUser.email, created: serverTimestamp() });
+}
+async function checkPopups() {
+  if (popupsShown || !auth.currentUser || !salLoaded || !transfersLoaded || !waitsLoaded || !fixedLoaded || profiles === null) return;
+  popupsShown = true;
+  me = profiles[emailKey(auth.currentUser.email)] || "";
+  updateMeBtn();
+  if (!me) me = await askWho();
+  if (!me) return;
+  try { await monthPopups(); } catch (e) { console.error(e); }
 }
 
 const isSharedExp = e => {

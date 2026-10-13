@@ -418,6 +418,12 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="bar"><i id="sBar"></i></div>
       <div id="sRes"></div>
     </section>
+    <section id="reconBox">
+      <h2>🏦 Rapprochement bancaire</h2>
+      <p class="mute" style="font-size:.85rem">Saisissez le solde réel de chaque compte à la fin du mois affiché. L'appli enregistre l'écart comme un ajustement : il devient le point de départ des mois suivants.</p>
+      <div id="reconRows"></div>
+      <details style="margin-top:8px"><summary class="mute">Ajustements enregistrés</summary><ul id="reconAdj"></ul></details>
+    </section>
   </div>
 
   <div id="tabDetail" hidden>
@@ -655,6 +661,10 @@ function listen() {
     transfers = s.docs.map(d => ({ id: d.id, ...d.data() })); transfersLoaded = true; checkPopups();
     renderContrib($("month").value); if (acctName) renderAcctPage();
   }));
+  unsubs.push(snap(collection(db, "adjustments"), s => {
+    adjustments = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderRecon(); if (acctName) renderAcctPage();
+  }));
   unsubs.push(snap(collection(db, "gifts"), s => {
     gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGifts();
@@ -729,7 +739,7 @@ function render() {
     if (i === 5) estEntries().filter(en => en.zone === "Commun").sort((a, b) => estAmt(b) - estAmt(a)).forEach(en => $("sum").append(miniGauge(en.category + (en.zone === "Commun" ? "" : " · " + en.zone), estActual(en), estAmt(en))));
   });
 
-  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); renderMut(); renderContrib(m); fillTopSal(); if (acctName) renderAcctPage();
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); renderMut(); renderContrib(m); fillTopSal(); renderRecon(); if (acctName) renderAcctPage();
   const byCat = {};
   [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   const pm = nmo(m, -1), prevCat = catTotals(pm), prevTot = Object.values(prevCat).reduce((t, v) => t + v, 0), showD = histLoaded && prevTot > 0;
@@ -2025,6 +2035,7 @@ function renderAcctPage() {
     d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)"; d.children[1].style.fontWeight = 400;
     $("acInfo").append(d);
   });
+  { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "border-top:1px solid var(--line);margin-top:6px;padding-top:6px;font-weight:700"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = "Solde estimé du compte (cumul, fin de mois)"; d.children[1].textContent = eur0(acctBalance(name, m)); $("acInfo").append(d); }
   $("acPie1").innerHTML = pieHtml(acctMonthCats(name, m));
   const all = {}, bars = [];
   for (let k = -11; k <= 0; k++) {
@@ -2101,7 +2112,7 @@ const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month")
 $("mPrev").onclick = () => shiftMonth(-1);
 $("mNext").onclick = () => shiftMonth(1);
 
-let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false, contribDraft = {}, profiles = null, me = "", transfersLoaded = false, fixedLoaded = false, popupsShown = false;
+let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false, contribDraft = {}, adjustments = [], reconDraft = {}, profiles = null, me = "", transfersLoaded = false, fixedLoaded = false, popupsShown = false;
 let estLoaded = false, flags = null, seeding = false;
 function maybeSeedJow() {
   if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
@@ -2291,6 +2302,67 @@ async function checkPopups() {
   if (!me) me = await askWho();
   if (!me) return;
   try { await monthPopups(); } catch (e) { console.error(e); }
+}
+
+function acctFlow(A, x) {
+  const sum = l => l.reduce((t, e) => t + (e.amount || 0), 0);
+  const credits = sum(waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === x && accMatch(w, A)));
+  const spent = sum(histExp.filter(e => e.month === x && accMatch(e, A)));
+  const fx = fixed.filter(f => accMatch(f, A)).reduce((t, f) => t + (priceAt(f, x) || 0), 0);
+  if (A === "Commun") return sum(transfers.filter(t => t.month === x)) + incAcct("Commun", x) + credits - fx - spent;
+  const ix = jmIdx(), d = salaries[x], sal = ((d && d.p && d.p[A === "Julien" ? ix.j : ix.m]) || {}).a || 0;
+  return sal + incAcct(A, x) + credits - fx - spent - sum(transfers.filter(t => t.month === x && t.person === A));
+}
+function acctBalance(A, m) {
+  const mons = [...histExp.map(e => e.month), ...transfers.map(t => t.month), ...adjustments.map(a => a.month), ...Object.keys(salaries)].filter(Boolean).sort();
+  let bal = 0;
+  if (mons.length) for (let x = mons[0], i = 0; x <= m && i < 240; x = nmo(x, 1), i++) bal += acctFlow(A, x);
+  return bal + adjustments.filter(a => a.account === A && a.month <= m).reduce((t, a) => t + (a.amount || 0), 0);
+}
+function renderRecon() {
+  const m = $("month").value, box = $("reconRows"); if (!box || !m) return;
+  const ae = document.activeElement, typing = ae && box.contains(ae) && ae.tagName === "INPUT";
+  const fr = d => new Date(d).toLocaleDateString("fr-FR");
+  if (!typing) {
+    box.innerHTML = "";
+    ["Commun", "Julien", "Marie"].forEach(A => {
+      const bal = acctBalance(A, m), col = { Commun: "blanc", Julien: "bleu", Marie: "rose" }[A];
+      const row = document.createElement("div"); row.style.cssText = `border-left:4px solid var(--${col}-b);background:var(--${col});border-radius:8px;padding:10px;margin-top:8px`;
+      row.innerHTML = "<div class='cat' style='padding:0'><b></b><span class='mute' style='font-size:.85rem'></span></div><div class='row' style='margin-top:8px;align-items:center'><input type='number' step='0.01' placeholder='Solde réel sur la banque (€)'><button>Équilibrer</button></div><div style='font-size:.85rem;margin-top:6px'></div>";
+      row.children[0].children[0].textContent = (A === "Commun" ? "Compte commun" : "Compte " + A);
+      row.children[0].children[1].textContent = "Solde de l'appli : " + eur(bal);
+      const inp = row.querySelector("input"), btn = row.querySelector("button"), info = row.children[2];
+      const upd = () => {
+        const R = parseFloat(inp.value), ok = !isNaN(R), diff = ok ? Math.round((R - bal) * 100) / 100 : 0;
+        btn.disabled = !ok || Math.abs(diff) < 0.005;
+        info.textContent = !ok ? "" : Math.abs(diff) < 0.005 ? "✓ Équilibré" : `Écart : ${diff > 0 ? "+" : "−"}${eur(Math.abs(diff))} (${diff > 0 ? "plus d'argent sur la banque que dans l'appli" : "moins d'argent sur la banque que dans l'appli"})`;
+        info.style.color = !ok ? "var(--mute)" : Math.abs(diff) < 0.005 ? "var(--ok)" : diff > 0 ? "var(--ok)" : "var(--bad)";
+      };
+      if (reconDraft[A] !== undefined) inp.value = reconDraft[A];
+      inp.oninput = () => { reconDraft[A] = inp.value; upd(); };
+      btn.onclick = async () => {
+        const R = parseFloat(inp.value); if (isNaN(R)) return;
+        const diff = Math.round((R - bal) * 100) / 100; if (Math.abs(diff) < 0.005) return;
+        const ok = await askConfirm("Équilibrer le compte", [row.children[0].children[0].textContent, "Solde de l'appli : " + eur(bal), "Solde réel : " + eur(R), `Ajustement : ${diff > 0 ? "+" : "−"}${eur(Math.abs(diff))} (enregistré en ${monthLabel(m)})`], "Équilibrer");
+        if (!ok) return;
+        delete reconDraft[A];
+        await addDoc(collection(db, "adjustments"), { account: A, month: m, amount: diff, note: "Ajustement bancaire", date: today, by: auth.currentUser.email, created: serverTimestamp() });
+      };
+      upd(); box.append(row);
+    });
+  }
+  const ul = $("reconAdj"); ul.innerHTML = "";
+  if (!adjustments.length) ul.innerHTML = "<li class='mute'>Aucun ajustement pour l'instant.</li>";
+  adjustments.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).forEach(a => {
+    const li = document.createElement("li"), l = document.createElement("div"), r = document.createElement("span");
+    l.innerHTML = "<div></div><div class='mute' style='font-size:.8rem'></div>";
+    l.children[0].textContent = (a.account === "Commun" ? "Compte commun" : "Compte " + a.account);
+    l.children[1].textContent = `${fr(a.date)} · pour ${monthLabel(a.month)}`;
+    r.style.cssText = "display:flex;gap:8px;align-items:center";
+    const amt = document.createElement("b"); amt.textContent = (a.amount > 0 ? "+ " : "− ") + eur(Math.abs(a.amount)); amt.style.color = a.amount > 0 ? "var(--ok)" : "var(--bad)";
+    const u = document.createElement("button"); u.className = "ghost"; u.textContent = "Annuler"; u.onclick = () => confirm("Annuler cet ajustement ?") && deleteDoc(doc(db, "adjustments", a.id));
+    r.append(amt, u); li.append(l, r); ul.append(li);
+  });
 }
 
 const isSharedExp = e => {

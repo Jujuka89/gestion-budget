@@ -759,7 +759,7 @@ function render() {
   const dim = new Date(+m.slice(0, 4), +m.slice(5), 0).getDate();
   const autoDate = f => m + "-" + String(Math.min(Math.max(1, f.day || 1), dim)).padStart(2, "0");
   const manual = [...expenses.map(e => ({ k: "e", e, date: e.date || "" })), ...credits.map(w => ({ k: "c", w, date: w.doneDate }))];
-  const auto = [...fixed.map(f => ({ k: "fa", f, p: priceAt(f, m) || 0, date: autoDate(f) })), ...incomes.map(f => ({ k: "ia", f, p: priceAt(f, m) || 0, date: autoDate(f) }))].filter(r => r.p > 0);
+  const auto = [...fixed.map(f => ({ k: "fa", f, p: priceAt(f, m) || 0, date: autoDate(f) })), ...incomes.map(f => ({ k: "ia", f, p: priceAt(f, m) || 0, date: autoDate(f) }))].filter(r => r.p > 0 && r.date <= today);
   const rowsF = (txFilter === "manual" ? manual : txFilter === "auto" ? auto : [...manual, ...auto]).sort((a, b) => {
     const fa = a.date > today ? 1 : 0, fb = b.date > today ? 1 : 0;
     return fa !== fb ? fa - fb : (fa ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));

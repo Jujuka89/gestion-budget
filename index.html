@@ -194,6 +194,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <span><i style="background:var(--bleu);border-color:var(--bleu-b)"></i>Julien</span>
       <span><i style="background:var(--blanc);border-color:var(--blanc-b)"></i>Compte commun</span>
     </div>
+    <div id="txFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px"></div>
     <ul id="list"></ul>
     <p id="empty" class="mute">Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.</p>
   </section>
@@ -755,36 +756,63 @@ function render() {
 
   $("empty").textContent = "Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.";
   const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m);
-  const rows = [...expenses.map(e => ({ k: "e", e, date: e.date || "" })), ...credits.map(w => ({ k: "c", w, date: w.doneDate }))]
-    .sort((a, b) => b.date.localeCompare(a.date));
-  $("empty").hidden = rows.length > 0;
+  const dim = new Date(+m.slice(0, 4), +m.slice(5), 0).getDate();
+  const autoDate = f => m + "-" + String(Math.min(Math.max(1, f.day || 1), dim)).padStart(2, "0");
+  const manual = [...expenses.map(e => ({ k: "e", e, date: e.date || "" })), ...credits.map(w => ({ k: "c", w, date: w.doneDate }))];
+  const auto = [...fixed.map(f => ({ k: "fa", f, p: priceAt(f, m) || 0, date: autoDate(f) })), ...incomes.map(f => ({ k: "ia", f, p: priceAt(f, m) || 0, date: autoDate(f) }))].filter(r => r.p > 0);
+  const rowsF = (txFilter === "manual" ? manual : txFilter === "auto" ? auto : [...manual, ...auto]).sort((a, b) => {
+    const fa = a.date > today ? 1 : 0, fb = b.date > today ? 1 : 0;
+    return fa !== fb ? fa - fb : (fa ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+  });
+  const fbox = $("txFilter"); fbox.innerHTML = "";
+  [["all", `Tout (${manual.length + auto.length})`], ["manual", `✍ Manuelles (${manual.length})`], ["auto", `⟳ Automatiques (${auto.length})`]].forEach(([v, t]) => {
+    const b = document.createElement("button"); b.textContent = t; b.className = txFilter === v ? "" : "ghost"; b.style.cssText = "padding:4px 10px;font-size:.8rem";
+    b.onclick = () => { txFilter = v; txAll = false; render(); }; fbox.append(b);
+  });
+  $("empty").hidden = rowsF.length > 0;
   $("list").innerHTML = "";
-  (txAll ? rows : rows.slice(0, 5)).forEach(({ k, e, w }) => {
-    const x = k === "e" ? e : w, li = document.createElement("li");
+  const fr = d => new Date(d).toLocaleDateString("fr-FR");
+  (txAll ? rowsF : rowsF.slice(0, 5)).forEach(({ k, e, w, f, p, date }) => {
+    const isAuto = k === "fa" || k === "ia", isDebit = k === "e" || k === "fa";
+    const x = isAuto ? f : (k === "e" ? e : w), li = document.createElement("li");
     if (x.account) li.className = "acc-" + x.account;
     const l = document.createElement("div");
     l.innerHTML = "<div></div><div class='mute'></div>";
+    let title, meta;
     if (k === "e") {
-      const pp = e.planId && (planned.find(p => p.id === e.planId) || { label: e.planLabel });
-      l.children[0].textContent = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
-      l.children[1].textContent = `${new Date(e.date).toLocaleDateString("fr-FR")} · ${e.care && e.care !== e.category ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category + (e.forWho ? " → " + e.forWho : "")}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+      const pp = e.planId && (planned.find(q => q.id === e.planId) || { label: e.planLabel });
+      title = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
+      meta = `${fr(e.date)} · ${e.care && e.care !== e.category ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category + (e.forWho ? " → " + e.forWho : "")}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+    } else if (k === "c") {
+      title = w.label;
+      meta = `${fr(w.doneDate)} · Revenu reçu${w.account ? " · " + w.account : ""} · ${(w.by || "").split("@")[0]}`;
     } else {
-      l.children[0].textContent = w.label;
-      l.children[1].textContent = `${new Date(w.doneDate).toLocaleDateString("fr-FR")} · Revenu reçu${w.account ? " · " + w.account : ""} · ${(w.by || "").split("@")[0]}`;
+      title = f.label;
+      meta = `${fr(date)}${date > today ? " (à venir)" : ""} · ${f.category}${f.account ? " · " + f.account : ""} · ${k === "fa" ? "prélèvement" : "versement"} automatique`;
+      li.style.borderLeftStyle = "dashed"; if (date > today) li.style.opacity = ".6";
     }
+    const pill = document.createElement("span"); pill.textContent = isAuto ? "⟳ Auto" : "✍ Manuel";
+    pill.style.cssText = "font-size:.7rem;border-radius:999px;padding:1px 7px;margin-right:6px;white-space:nowrap;color:var(--mute);" + (isAuto ? "border:1px dashed var(--mute)" : "border:1px solid var(--line)");
+    l.children[0].append(pill, document.createTextNode(title)); l.children[1].textContent = meta;
+    if (isAuto) l.children[1].style.fontStyle = "italic";
     const r = document.createElement("div");
     const sp = document.createElement("span"); sp.className = "amt";
-    sp.textContent = (k === "e" ? "− " : "+ ") + eur(x.amount || 0);
-    sp.style.cssText = "font-weight:700;color:" + (k === "e" ? "var(--bad)" : "var(--ok)");
+    sp.textContent = (isDebit ? "− " : "+ ") + eur(isAuto ? p : (x.amount || 0));
+    sp.style.cssText = "font-weight:700;color:" + (isDebit ? "var(--bad)" : "var(--ok)");
     r.append(sp);
-    const b = document.createElement("button");
-    b.className = "ghost"; b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + x.label);
-    b.onclick = () => confirm(k === "e" ? "Supprimer cette dépense ?" : "Supprimer ce revenu ?") && deleteDoc(doc(db, k === "e" ? "expenses" : "pending", x.id));
+    const b = document.createElement("button"); b.className = "ghost";
+    if (isAuto) {
+      b.textContent = "Gérer"; b.setAttribute("aria-label", "Gérer " + f.label + " dans " + (k === "fa" ? "les dépenses fixes" : "les revenus fixes"));
+      b.onclick = () => { document.querySelectorAll("nav button").forEach(n => n.classList.remove("on")); k === "fa" ? openDetail(f.id) : openIncDetail(f.id); };
+    } else {
+      b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + x.label);
+      b.onclick = () => confirm(k === "e" ? "Supprimer cette dépense ?" : "Supprimer ce revenu ?") && deleteDoc(doc(db, k === "e" ? "expenses" : "pending", x.id));
+    }
     r.append(b); li.append(l, r); $("list").append(li);
   });
-  if (rows.length > 5) {
+  if (rowsF.length > 5) {
     const li = document.createElement("li"), t = document.createElement("button");
-    t.className = "ghost"; t.style.width = "100%"; t.textContent = txAll ? "Réduire" : `Voir les ${rows.length - 5} autres`;
+    t.className = "ghost"; t.style.width = "100%"; t.textContent = txAll ? "Réduire" : `Voir les ${rowsF.length - 5} autres`;
     t.onclick = () => { txAll = !txAll; render(); };
     li.append(t); $("list").append(li);
   }
@@ -801,7 +829,7 @@ function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y,
 function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
 
 let editId = null, curId = null;
-let incomes = [], incEditId = null, incCurId = null, txAll = false;
+let incomes = [], incEditId = null, incCurId = null, txAll = false, txFilter = "all";
 let acctName = null;
 function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut", "tabCats"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 

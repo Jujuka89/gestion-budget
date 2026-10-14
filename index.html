@@ -140,7 +140,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
         <div class="cat" style="padding:0;font-size:.8rem"><span style="color:var(--bleu-b)">◀ Julien</span><span class="mute">équilibre</span><span style="color:var(--rose-b)">Marie ▶</span></div>
         <div id="balTxt" style="font-size:1.15rem;font-weight:700;margin-top:8px"></div>
         <div id="balSub2" class="mute" style="font-size:.8rem"></div>
-        <details style="margin-top:8px;font-size:.9rem"><summary class="mute">Voir le détail des budgets (partage moitié-moitié)</summary>
+        <details style="margin-top:8px;font-size:.9rem"><summary class="mute">Voir le détail des budgets (partage au prorata des salaires)</summary>
           <div id="balDet"></div>
         </details>
       </section>
@@ -2401,15 +2401,17 @@ const isSharedExp = e => {
   if (e.planId || e.category === "Courses" || e.category === "Jow") return true;
   return !!commonEntry(e.category) && !ownersOf(e.category).includes(e.account);
 };
+const isCounted = e => (e.account === "Julien" || e.account === "Marie") && !e.planId && (["Jow", "Animaux", "Fast Food", "Enfants"].includes(e.category) || (e.category === "Santé" && (e.forWho === "Kélia" || e.forWho === "Milio")));
 function monthDiff(x) {
-  const list = histExp.filter(e => e.month === x && isSharedExp(e)), sum = l => l.reduce((t, e) => t + e.amount, 0);
-  const pJ = sum(list.filter(e => e.account === "Julien")), pM = sum(list.filter(e => e.account === "Marie")), tot = pJ + pM;
-  const sJ = 0.5;
-  return { list, pJ, pM, tot, sJ, diff: pJ - tot * sJ };
+  const list = histExp.filter(e => e.month === x && isCounted(e)), sum = l => l.reduce((t, e) => t + e.amount, 0);
+  const fx = A => fixed.filter(f => f.account === A).reduce((t, f) => t + (priceAt(f, x) || 0), 0), fJ = fx("Julien"), fM = fx("Marie");
+  const pJ = sum(list.filter(e => e.account === "Julien")) + fJ, pM = sum(list.filter(e => e.account === "Marie")) + fM, tot = pJ + pM;
+  const sp = salPair(x), sal = sp ? sp.Julien + sp.Marie : 0, sJ = sal > 0 ? sp.Julien / sal : 0.5;
+  return { list, pJ, pM, fJ, fM, tot, sJ, diff: pJ - tot * sJ };
 }
 function renderBalance(m) {
   if (!m) return;
-  const months = histExp.filter(isSharedExp).map(e => e.month).concat(settles.map(x => x.month)).filter(x => x <= m).sort();
+  const months = histExp.filter(isCounted).map(e => e.month).concat(settles.map(x => x.month), Object.keys(salaries)).filter(x => x <= m).sort();
   let carry = 0, totAll = 0;
   if (months.length) for (let x = months[0], i = 0; x < m && i < 240; x = nmo(x, 1), i++) { const d = monthDiff(x); carry += d.diff; totAll += d.tot; }
   const cur = monthDiff(m); totAll += cur.tot;
@@ -2423,17 +2425,18 @@ function renderBalance(m) {
   $("balVal").textContent = equal ? "0 €" : (bal > 0 ? "◀ " + eur0(bal) : eur0(-bal) + " ▶");
   if (equal) { T.textContent = totAll > 0 || settles.length ? "Budgets équilibrés" : "Aucun budget payé par Julien ou Marie pour l'instant"; T.style.color = totAll > 0 || settles.length ? "var(--ok)" : "var(--mute)"; }
   else { T.textContent = `${A} a ${eur0(Math.abs(bal))} d'avance sur ${B}`; T.style.color = bal > 0 ? "var(--bleu-b)" : "var(--rose-b)"; }
-  $("balSub2").textContent = `Report des mois précédents : ${adv(bal - cur.diff)} · ce mois-ci : ${adv(cur.diff)} · payé ce mois-ci : Julien ${eur0(cur.pJ)}, Marie ${eur0(cur.pM)}`;
+  $("balSub2").textContent = `Report des mois précédents : ${adv(bal - cur.diff)} · ce mois-ci : ${adv(cur.diff)} · payé ce mois-ci : Julien ${eur0(cur.pJ)}, Marie ${eur0(cur.pM)} · part de Julien ${Math.round(cur.sJ * 100)} %`;
   const det = $("balDet"); det.innerHTML = "";
   const groups = {};
-  cur.list.forEach(e => { const k = e.planId ? "Dépenses prévues" : e.category; (groups[k] = groups[k] || { J: 0, M: 0 })[e.account === "Julien" ? "J" : "M"] += e.amount; });
+  cur.list.forEach(e => { const k = e.category === "Santé" && e.forWho ? `Santé (${e.forWho})` : e.category; (groups[k] = groups[k] || { J: 0, M: 0 })[e.account === "Julien" ? "J" : "M"] += e.amount; });
+  if (cur.fJ + cur.fM > 0) groups["Dépenses fixes (comptes perso)"] = { J: cur.fJ, M: cur.fM };
   Object.keys(groups).sort().forEach(k => {
     const g = groups[k], spent = g.J + g.M, budget = commonEntry(k) ? estAmt(commonEntry(k)) : 0;
     const label = `${k} (Julien ${eur0(g.J)} · Marie ${eur0(g.M)})`;
     if (budget > 0) det.append(miniGauge(label, spent, budget));
     else { const d = document.createElement("div"); d.className = "cat"; d.style.fontSize = ".85rem"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = label; d.children[1].textContent = eur0(spent); d.children[1].style.fontWeight = 400; det.append(d); }
   });
-  if (!Object.keys(groups).length) det.innerHTML = '<div class="mute">Aucune dépense de Jow, de courses, de budget estimé ou prévu sur un compte personnel ce mois-ci.</div>';
+  if (!Object.keys(groups).length) det.innerHTML = '<div class="mute">Aucune dépense comptée dans l’équilibre ce mois-ci (Jow, animaux, fast food, enfants, santé de Kélia et Milio, dépenses fixes des comptes personnels).</div>';
 }
 
 function legacyJowBudget(m) {

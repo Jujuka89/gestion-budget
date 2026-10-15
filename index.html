@@ -1560,7 +1560,8 @@ const DEFAULT_SUBS = { "Santé": ["Ostéopathe", "Médecin", "Pharmacie"], "Fast
 const QUICK_CATS = ["Boulangerie"];
 const PROTECTED_CATS = ["Santé", "Lentilles", "Jow", "Courses", "Autre"];
 let cats = [], catsLoaded = false, histLoaded = false, waitsLoaded = false, migratingSante = false;
-const catNames = () => cats.length ? cats.map(c => c.name) : DEFAULT_CATS;
+const sortCats = l => [...l].sort((a, b) => (a === "Autre") - (b === "Autre") || a.localeCompare(b, "fr", { sensitivity: "base" }));
+const catNames = () => sortCats(cats.length ? cats.map(c => c.name) : DEFAULT_CATS);
 const noLabelCat = c => { const k = cats.find(x => x.name === c); return k && k.noLabel !== undefined ? !!k.noLabel : QUICK_CATS.includes(c); };
 const catSubs = c => { const k = cats.find(x => x.name === c); return k ? (k.subs || []) : (cats.length ? [] : (DEFAULT_SUBS[c] || [])); };
 function fillSub(cat) {

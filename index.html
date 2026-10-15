@@ -180,8 +180,10 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   </section>
 
   <section>
-    <h2>Par catégorie</h2>
-    <div id="cats" class="mute">Aucune dépense ce mois-ci.</div>
+    <button class="ghost" id="goCatView" style="width:100%;text-align:left;padding:12px">
+      <b>📊 Détail par catégorie ›</b>
+      <div id="catsSum" class="mute" style="font-size:.85rem;margin-top:4px;font-weight:400"></div>
+    </button>
   </section>
 
   <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button><button id="goMut">Mutuelle</button><button id="goCats">Catégories</button></div>
@@ -318,6 +320,15 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <div class="row"><input id="catNew" placeholder="Nouvelle catégorie (ex. Coiffeur)"><button id="catAdd">Ajouter</button></div>
     </section>
     <section><div id="catList"></div></section>
+  </div>
+
+  <div id="tabCatView" hidden>
+    <button class="ghost" id="catViewBack" style="margin-top:16px">← Retour</button>
+    <section>
+      <h2>Par catégorie · <span id="cvMonth"></span></h2>
+      <p class="mute" style="font-size:.85rem">Dépenses saisies et dépenses fixes du mois. L'écart avec le mois précédent est en rouge quand vous avez dépensé plus, en vert quand vous avez dépensé moins.</p>
+      <div id="cats" class="mute">Aucune dépense ce mois-ci.</div>
+    </section>
   </div>
 
   <div id="tabPlanned" hidden>
@@ -753,6 +764,9 @@ function render() {
       if (showD) { const diff = v - p; d = Math.abs(diff) < 0.5 ? '<small style="color:var(--mute);margin-right:8px">=</small>' : `<small style="color:var(${diff > 0 ? "--bad" : "--ok"});font-weight:700;margin-right:8px">${diff > 0 ? "+" : "−"}${eur0(Math.abs(diff))}</small>`; }
       return `<div class="cat"><span>${esc(c)}</span><span>${d}<b>${eur0(v)}</b></span></div>`;
     }).join("") || "Aucune dépense ce mois-ci.";
+  $("cvMonth").textContent = monthLabel(m);
+  { const tot = catRows.reduce((t, r) => t + r[1], 0), top = catRows.find(r => r[1] > 0), dT = tot - prevTot;
+    $("catsSum").innerHTML = top ? `Total ${eur0(tot)}${showD ? ` <span style="color:var(${dT > 0 ? "--bad" : "--ok"});font-weight:700">${dT > 0 ? "+" : "−"}${eur0(Math.abs(dT))}</span>` : ""} · plus gros poste : ${esc(top[0])} ${eur0(top[1])}` : "Aucune dépense ce mois-ci"; }
 
   $("empty").textContent = "Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.";
   const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m);
@@ -831,7 +845,7 @@ function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), 
 let editId = null, curId = null;
 let incomes = [], incEditId = null, incCurId = null, txAll = false, txFilter = "all";
 let acctName = null;
-function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut", "tabCats"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut", "tabCats", "tabCatView"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
 const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -1093,6 +1107,8 @@ $("goFixed").onclick = () => goTab("tabFixed");
 $("goInc").onclick = () => goTab("tabInc");
 $("goMut").onclick = () => { goTab("tabMut"); renderMut(); };
 $("goCats").onclick = () => { goTab("tabCats"); renderCats(); };
+$("goCatView").onclick = () => goTab("tabCatView");
+$("catViewBack").onclick = () => document.querySelector('nav [data-t="month"]').click();
 
 function occOf(p) {
   if (!p.yearly) return p.month;

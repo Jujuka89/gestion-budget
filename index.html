@@ -819,8 +819,8 @@ function render() {
       b.textContent = "Gérer"; b.setAttribute("aria-label", "Gérer " + f.label + " dans " + (k === "fa" ? "les dépenses fixes" : "les revenus fixes"));
       b.onclick = () => { document.querySelectorAll("nav button").forEach(n => n.classList.remove("on")); k === "fa" ? openDetail(f.id) : openIncDetail(f.id); };
     } else {
-      b.textContent = "Supprimer"; b.setAttribute("aria-label", "Supprimer " + x.label);
-      b.onclick = () => confirm(k === "e" ? "Supprimer cette dépense ?" : "Supprimer ce revenu ?") && deleteDoc(doc(db, k === "e" ? "expenses" : "pending", x.id));
+      b.textContent = "✎ Modifier"; b.setAttribute("aria-label", "Modifier " + x.label);
+      b.onclick = () => k === "e" ? startExpenseEdit(e) : startWaitEdit(w);
     }
     r.append(b); li.append(l, r); $("list").append(li);
   });
@@ -843,7 +843,7 @@ function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y,
 function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
 
 let editId = null, curId = null;
-let incomes = [], incEditId = null, incCurId = null, txAll = false, txFilter = "all";
+let incomes = [], incEditId = null, incCurId = null, txAll = false, txFilter = "all", exEditId = null, editDone = false;
 let acctName = null;
 function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut", "tabCats", "tabCatView"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
 
@@ -1597,6 +1597,7 @@ function allowedAccounts() {
 }
 function renderAccBtns() {
   const box = $("accBtns"), list = allowedAccounts();
+  if ((exEditId || wEditId) && $("account").value && !list.includes($("account").value)) list.push($("account").value);
   if (!list.includes($("account").value)) $("account").value = list.length === 1 ? list[0] : "";
   box.innerHTML = "";
   list.forEach(a => {
@@ -1728,10 +1729,10 @@ function txUpdate() {
   const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
   $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
   $("txStep2").hidden = !exp;
-  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Santé", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId, hasSub = exp && cat !== "Santé" && cat !== "Lentilles" && catSubs(cat).length > 0, subSel = hasSub ? $("subType").value : "";
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Santé", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId && !exEditId, hasSub = exp && cat !== "Santé" && cat !== "Lentilles" && catSubs(cat).length > 0, subSel = hasSub ? $("subType").value : "";
   $("txSub").hidden = !hasSub; if (hasSub) fillSub(cat);
-  const quick = exp && QUICK_CATS.includes(cat) && !wEditId, noLab = exp && cat !== "Lentilles" && noLabelCat(cat) && !wEditId;
-  $("label").hidden = lentNew || ((quick || noLab) && !(hasSub && subSel === "Autre")) || (hasSub && subSel !== "" && subSel !== "Autre"); $("tpendBox").hidden = lentNew || quick; if (lentNew || quick) $("tpend").checked = false;
+  const quick = exp && QUICK_CATS.includes(cat) && !wEditId && !exEditId, noLab = exp && cat !== "Lentilles" && noLabelCat(cat) && !wEditId && !exEditId;
+  $("label").hidden = !(wEditId || exEditId) && (lentNew || ((quick || noLab) && !(hasSub && subSel === "Autre")) || (hasSub && subSel !== "" && subSel !== "Autre")); $("tpendBox").hidden = lentNew || quick || !!exEditId || editDone; if (lentNew || quick || exEditId || editDone) $("tpend").checked = false;
   $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
   if (flow) { if (soins) fillCare(); renderWho(); }
   const careOk = !flow || (careFor !== "" && (lent || $("careType").value !== ""));
@@ -1741,7 +1742,7 @@ function txUpdate() {
   const hasAcc = !$("txStep3").hidden && $("account").value !== "";
   $("txStep4").hidden = !hasAcc; $("btnAdd").hidden = !hasAcc;
   const med = exp && cat === MED, rule = flow && careOk ? ruleFor(careName, careFor) : null;
-  $("refBox").hidden = !(med || rule);
+  $("refBox").hidden = !((med || rule) && !exEditId);
   $("refMut").hidden = true;
   if ((med || rule) && !$("refDate").value) $("refDate").value = addDays(today, 10);
   if (med) fillRefMut();
@@ -1764,7 +1765,7 @@ $("subType").onchange = txUpdate;
 $("refAmt").oninput = () => { refManual = true; };
 
 function resetAddForm() {
-  wEditId = null; careFor = ""; refManual = false; $("careType").value = ""; $("subType").value = "";
+  wEditId = null; exEditId = null; editDone = false; careFor = ""; refManual = false; $("careType").value = ""; $("subType").value = "";
   $("ttype").value = ""; $("category").value = ""; $("account").value = "";
   $("label").value = ""; $("amount").value = ""; $("date").value = today;
   $("tpend").checked = false; $("tpend").disabled = false;
@@ -1777,6 +1778,23 @@ function closeTx() { resetAddForm(); if ($("txDlg").open) $("txDlg").close(); }
 $("btnOpenTx").onclick = openTx;
 $("btnAddCancel").onclick = closeTx;
 
+function startExpenseEdit(e) {
+  resetAddForm();
+  exEditId = e.id;
+  $("ttype").value = "exp";
+  if (![...$("category").options].some(o => o.value === e.category)) $("category").add(new Option(e.category, e.category));
+  $("category").value = e.category; careFor = e.forWho || "";
+  txUpdate();
+  if (e.sub || e.shop) { $("subType").value = e.sub || e.shop; txUpdate(); }
+  if (e.care) { $("careType").value = e.care; txUpdate(); }
+  $("account").value = e.account || "Commun";
+  $("label").value = e.label || ""; $("amount").value = e.amount; $("date").value = e.date || today;
+  $("tpend").checked = false; $("tpend").disabled = true;
+  $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
+  txUpdate();
+  $("tHint").textContent = "Transaction déjà enregistrée : la modifier ne change pas un remboursement de mutuelle déjà créé.";
+  dlgShow($("txDlg"));
+}
 function startWaitEdit(w) {
   resetAddForm();
   wEditId = w.id;
@@ -1784,7 +1802,7 @@ function startWaitEdit(w) {
   if (w.type !== "in") { const c = w.cat || "Autre"; if (![...$("category").options].some(o => o.value === c)) $("category").add(new Option(c, c)); $("category").value = c; }
   careFor = w.forWho || "";
   $("account").value = w.account || "Commun";
-  $("label").value = w.label; $("amount").value = w.amount; $("date").value = w.due || "";
+  $("label").value = w.label; $("amount").value = w.amount; $("date").value = (w.done && w.type === "in" ? w.doneDate : w.due) || ""; editDone = !!w.done;
   $("refAmt").value = w.refund || ""; $("refDate").value = w.refundDue || "";
   $("tpend").checked = true; $("tpend").disabled = true;
   $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
@@ -1796,6 +1814,10 @@ function startWaitEdit(w) {
   $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
 }
 $("btnAddDel").onclick = async () => {
+  if (exEditId) {
+    if (!confirm("Supprimer cette dépense ?")) return;
+    await deleteDoc(doc(db, "expenses", exEditId)); closeTx(); return;
+  }
   const w = waits.find(x => x.id === wEditId); if (!w) return;
   if (!confirm("Supprimer « " + w.label + " » ?" + (w.done && w.type === "pay" ? " La dépense déjà validée reste dans les dépenses du mois." : ""))) return;
   await deleteDoc(doc(db, "pending", w.id)); closeTx();
@@ -1805,12 +1827,12 @@ $("btnAdd").onclick = async () => {
   const amount = parseFloat($("amount").value), date = $("date").value;
   const cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
   const lent = !cred && category === "Lentilles", soins = (!cred && category === "Santé") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
-  const lentNew = lent && !wEditId, quick = !cred && QUICK_CATS.includes(category) && !wEditId, noLab = !cred && category !== "Lentilles" && noLabelCat(category) && !wEditId, pend = $("tpend").checked && !lentNew && !quick;
+  const lentNew = lent && !wEditId && !exEditId, quick = !cred && QUICK_CATS.includes(category) && !wEditId && !exEditId, noLab = !cred && category !== "Lentilles" && noLabelCat(category) && !wEditId && !exEditId, pend = $("tpend").checked && !lentNew && !quick;
   const subHas = !cred && category !== "Santé" && category !== "Lentilles" && catSubs(category).length > 0;
   const shop = subHas ? $("subType").value : "";
   if (subHas && !shop) return;
   const typed = $("label").value.trim(), autoLab = soins && care && forWho ? `${care} (${forWho})` : category;
-  const label = lentNew ? `Lentilles (${forWho})` : shop && shop !== "Autre" ? shop : shop === "Autre" ? (typed || category) : (quick || noLab) ? autoLab : (typed || (soins && care && forWho ? `${care} (${forWho})` : ""));
+  const label = (wEditId || exEditId) && typed ? typed : lentNew ? `Lentilles (${forWho})` : shop && shop !== "Autre" ? shop : shop === "Autre" ? (typed || category) : (quick || noLab) ? autoLab : (typed || (soins && care && forWho ? `${care} (${forWho})` : ""));
   if (soins && (!care || !forWho)) return;
   if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
   const by = auth.currentUser.email;
@@ -1819,15 +1841,19 @@ $("btnAdd").onclick = async () => {
   const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : (shop ? { sub: shop } : {});
   const fr = d => new Date(d).toLocaleDateString("fr-FR");
   const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Santé · ${care} → ${forWho}` : "Dépense · " + category);
-  const ok = await askConfirm(wEditId ? "Enregistrer les modifications ?" : "Confirmer la transaction", [
+  const ok = await askConfirm((wEditId || exEditId) ? "Enregistrer les modifications ?" : "Confirmer la transaction", [
     label, what, `Montant : ${eur(amount)}`, `Compte : ${account}`,
     pend ? "À venir" + (date ? " · prévue le " + fr(date) : "") : "Date : " + fr(date),
     hasRef ? `Remboursement prévu : +${eur(refAmt)} (ligne ajoutée dans « À venir »)` : ""
-  ], wEditId ? "Enregistrer" : "Valider");
+  ], (wEditId || exEditId) ? "Enregistrer" : "Valider");
   if (!ok) return;
   const leftBefore = lentNew && rule ? mutUsage(rule, date.slice(0, 4)).left : 0;
+  if (exEditId) {
+    await updateDoc(doc(db, "expenses", exEditId), { label, amount, date, category, account, month: date.slice(0, 7), care: care || "", forWho: forWho || "", sub: shop || "" });
+    closeTx(); return;
+  }
   if (wEditId) {
-    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: hasRef ? refAmt : 0, refundDue: hasRef ? refDue : "", mutId, ...extra });
+    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: hasRef ? refAmt : 0, refundDue: hasRef ? refDue : "", mutId, ...extra, ...(editDone && cred ? { doneDate: date } : {}) });
     closeTx(); return;
   }
   if (pend) {

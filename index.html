@@ -169,12 +169,12 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
   <section>
     <h2>Ajouter une transaction</h2>
     <button id="btnOpenTx" style="width:100%;font-size:1.05rem;padding:12px">➕ Ajouter une transaction</button>
-    <div class="mute" style="font-size:.8rem;margin-top:6px">Dépense ou crédit, avec l'option « En attente » (médecin, chèque…).</div>
+    <div class="mute" style="font-size:.8rem;margin-top:6px">Dépense ou crédit, avec l'option « À venir » (médecin, chèque…).</div>
   </section>
 
   <section>
-    <h2>⏳ En attente</h2>
-    <details class="mute" style="font-size:.85rem"><summary>ℹ️ Comment ça marche</summary><p style="margin:6px 0 0">Les transactions cochées « En attente » à la saisie. Elles sont prises en compte dans le budget du mois prévu (ou du mois en cours sans date). Cliquez sur « ✓ Valider » quand le paiement est débité ou le crédit reçu : un paiement devient alors une vraie dépense.</p></details>
+    <h2>📅 À venir…</h2>
+    <details class="mute" style="font-size:.85rem"><summary>ℹ️ Comment ça marche</summary><p style="margin:6px 0 0">Les prochains paiements et crédits : les transactions cochées « À venir » à la saisie (chèque, remboursement…), et les prélèvements ou versements automatiques des 30 prochains jours (⟳ Auto). Les premières sont prises en compte dans le budget du mois prévu. Cliquez sur « ✓ Valider » quand le paiement est débité ou le crédit reçu : un paiement devient alors une vraie dépense.</p></details>
     <div id="waitTotal" class="mute" style="margin-top:10px"></div>
     <ul id="waitList"></ul>
   </section>
@@ -533,7 +533,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
       <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€)" style="width:100%">
       <label class="mute" style="display:block;margin-top:8px;font-size:.85rem">Vérifier le remboursement le<input id="refDate" type="date" style="width:100%"></label>
     </div>
-    <label id="tpendBox" class="mute" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="tpend" type="checkbox" style="width:auto"> En attente (à valider plus tard : médecin, chèque…)</label>
+    <label id="tpendBox" class="mute" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="tpend" type="checkbox" style="width:auto"> À venir (à valider plus tard : médecin, chèque…)</label>
     <div id="tHint" class="mute" style="margin-top:8px;font-size:.8rem"></div>
   </div>
   <div class="row" style="margin-top:14px">
@@ -743,7 +743,7 @@ function render() {
   $("fill").style.width = pct + "%"; $("fill").style.background = col;
   $("sum").innerHTML = "";
   if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
-  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements en attente", pd.pay], ["+ Crédits et revenus ponctuels", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements à venir", pd.pay], ["+ Crédits et revenus ponctuels", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
     if (![0, 1, 2].includes(i) && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
     d.children[0].textContent = t; d.children[1].textContent = eur0(v);
@@ -830,7 +830,7 @@ function render() {
     t.onclick = () => { txAll = !txAll; render(); };
     li.append(t); $("list").append(li);
   }
-  renderFixed(); renderInc(); renderFixBars();
+  renderFixed(); renderInc(); renderFixBars(); renderWait();
 }
 
 function prices(f) { return (f.prices && f.prices.length ? f.prices : [{ from: f.start || "0000-00", amount: f.amount }]).slice().sort((a, b) => a.from.localeCompare(b.from)); }
@@ -1460,7 +1460,7 @@ function askValidate(w) {
     const ex = $("valAll").checked ? w.amount : (parseFloat($("valAmt").value) || 0);
     const r = calcRefund(it, ex, today.slice(0, 4));
     $("valRef").hidden = false;
-    $("valRef").textContent = r > 0 ? `Remboursement mutuelle prévu : +${eur(r)} (une ligne sera ajoutée en attente)` : "Plafond de remboursement de l'année atteint : aucun remboursement attendu.";
+    $("valRef").textContent = r > 0 ? `Remboursement mutuelle prévu : +${eur(r)} (une ligne sera ajoutée dans « À venir »)` : "Plafond de remboursement de l'année atteint : aucun remboursement attendu.";
   };
   valUpd();
   $("valOk").onclick = async () => {
@@ -1476,6 +1476,38 @@ $("valAmt").oninput = () => valUpd();
 $("valAmt").onkeydown = e => { if (e.key === "Enter") $("valOk").click(); };
 $("valCancel").onclick = () => $("valDlg").close();
 
+function upcomingAuto() {
+  const out = [], horizon = addDays(today, 30), cur = today.slice(0, 7);
+  const mk = (arr, kind) => arr.forEach(f => {
+    [cur, nmo(cur, 1)].forEach(mm => {
+      const p = priceAt(f, mm) || 0; if (!(p > 0)) return;
+      const dim = new Date(+mm.slice(0, 4), +mm.slice(5), 0).getDate();
+      const date = mm + "-" + String(Math.min(Math.max(1, f.day || 1), dim)).padStart(2, "0");
+      if (date > today && date <= horizon) out.push({ kind, f, p, date });
+    });
+  });
+  mk(fixed, "pay"); mk(incomes, "in");
+  return out;
+}
+function autoRow(a) {
+  const f = a.f, isOut = a.kind === "pay", li = document.createElement("li");
+  if (f.account) li.className = "acc-" + f.account;
+  li.style.borderLeftStyle = "dashed";
+  const box = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
+  box.style.cssText = "flex:1;min-width:0"; t.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+  const pill = document.createElement("span"); pill.textContent = "⟳ Auto";
+  pill.style.cssText = "font-size:.7rem;border-radius:999px;padding:1px 7px;margin-right:6px;white-space:nowrap;color:var(--mute);border:1px dashed var(--mute)";
+  t.append(pill, document.createTextNode(f.label));
+  m.className = "mute"; m.style.cssText = "font-size:.8rem;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+  m.textContent = `${new Date(a.date).toLocaleDateString("fr-FR")} · ${isOut ? "prélèvement" : "versement"} automatique${f.account ? " · " + f.account : ""}`;
+  box.append(t, m);
+  const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center;flex:none;justify-content:flex-end";
+  const amt = document.createElement("span"); amt.className = "amt"; amt.textContent = (isOut ? "− " : "+ ") + eur(a.p);
+  amt.style.cssText = "font-weight:700;color:" + (isOut ? "var(--bad)" : "var(--ok)");
+  const b = document.createElement("button"); b.className = "ghost"; b.textContent = "Gérer"; b.setAttribute("aria-label", "Gérer " + f.label);
+  b.onclick = () => { document.querySelectorAll("nav button").forEach(n => n.classList.remove("on")); isOut ? openDetail(f.id) : openIncDetail(f.id); };
+  r.append(amt, b); li.append(box, r); return li;
+}
 let waitAll = false;
 function refundInfo(w) {
   if (w.type === "in" || w.done || !w.mutId) return "";
@@ -1485,10 +1517,14 @@ function refundInfo(w) {
 }
 function renderWait() {
   const ul = $("waitList"); ul.innerHTML = "";
+  const ua = upcomingAuto(), uaSum = k => ua.filter(a => a.kind === k).reduce((t, a) => t + a.p, 0);
   const open = waits.filter(w => !w.done), sum = t => open.filter(w => w.type === t).reduce((a, w) => a + (w.amount || 0), 0);
-  $("waitTotal").textContent = waits.length ? `À payer : ${eur(sum("pay"))} · À recevoir : ${eur(sum("in"))}` : "Rien en attente pour l'instant.";
-  const arr = waits.slice().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.due || "9999").localeCompare(b.due || "9999") || (a.label || "").localeCompare(b.label || ""));
-  (waitAll ? arr : arr.slice(0, 5)).forEach(w => {
+  $("waitTotal").textContent = (waits.length || ua.length) ? `À payer : ${eur(sum("pay") + uaSum("pay"))} · À recevoir : ${eur(sum("in") + uaSum("in"))}` : "Rien à venir pour l'instant.";
+  const arr = [...waits.map(w => ({ w, key: w.done ? "z" + (w.doneDate || "") : (w.due || "9999") })), ...ua.map(a => ({ a, key: a.date }))]
+    .sort((x, y) => x.key.localeCompare(y.key) || ((x.w || x.a.f).label || "").localeCompare((y.w || y.a.f).label || ""));
+  (waitAll ? arr : arr.slice(0, 5)).forEach(it => {
+    if (it.a) { ul.append(autoRow(it.a)); return; }
+    const w = it.w;
     const li = document.createElement("li"), isIn = w.type === "in";
     if (w.account) li.className = "acc-" + w.account;
     const box = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
@@ -1712,9 +1748,9 @@ function txUpdate() {
   if (rule && !refManual) { const c = calcRefund(rule, parseFloat($("amount").value) || 0, ($("date").value || today).slice(0, 4)); $("refAmt").value = c > 0 ? c : ""; }
   $("dateLab").textContent = $("tpend").checked ? "Date prévue (facultative)" : "Date";
   $("tHint").textContent = $("tpend").checked
-    ? "En attente : prise en compte dans le budget, à valider plus tard dans la liste « En attente »."
+    ? "À venir : prise en compte dans le budget, à valider plus tard dans la liste « À venir »."
     : (cred ? "Crédit enregistré tout de suite à la date choisie." : "Dépense enregistrée tout de suite à la date choisie.");
-  if (med) $("tHint").textContent += " Une ligne « Remboursement » sera ajoutée en attente.";
+  if (med) $("tHint").textContent += " Une ligne « Remboursement » sera ajoutée dans « À venir ».";
   if (flow && careOk) $("tHint").textContent += rule
     ? ` Mutuelle (${rule.label} · ${rule.person}) : ${ruleText(rule)}. Le remboursement est calculé automatiquement et reste modifiable.`
     : ` Aucune règle de mutuelle pour ${careName} · ${careFor} : ajoutez-la dans la page d'un compte, rubrique Mutuelle.`;
@@ -1785,8 +1821,8 @@ $("btnAdd").onclick = async () => {
   const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Santé · ${care} → ${forWho}` : "Dépense · " + category);
   const ok = await askConfirm(wEditId ? "Enregistrer les modifications ?" : "Confirmer la transaction", [
     label, what, `Montant : ${eur(amount)}`, `Compte : ${account}`,
-    pend ? "En attente" + (date ? " · prévue le " + fr(date) : "") : "Date : " + fr(date),
-    hasRef ? `Remboursement prévu : +${eur(refAmt)} (ligne ajoutée en attente)` : ""
+    pend ? "À venir" + (date ? " · prévue le " + fr(date) : "") : "Date : " + fr(date),
+    hasRef ? `Remboursement prévu : +${eur(refAmt)} (ligne ajoutée dans « À venir »)` : ""
   ], wEditId ? "Enregistrer" : "Valider");
   if (!ok) return;
   const leftBefore = lentNew && rule ? mutUsage(rule, date.slice(0, 4)).left : 0;
@@ -1806,7 +1842,7 @@ $("btnAdd").onclick = async () => {
   if (lentNew && rule) {
     const after = leftBefore === Infinity ? Infinity : Math.max(0, leftBefore - (hasRef ? refAmt : 0));
     await showInfo("Lentilles · " + forWho, [
-      hasRef ? `Remboursement prévu : +${eur(refAmt)} (en attente)` : "Aucun remboursement : plafond atteint ou montant nul.",
+      hasRef ? `Remboursement prévu : +${eur(refAmt)} (à venir)` : "Aucun remboursement : plafond atteint ou montant nul.",
       `Il reste ${fmtLeft(after)} de remboursement pour l'année ${date.slice(0, 4)}` + (rule.yearly > 0 ? ` (plafond ${eur0(rule.yearly)})` : "") + "."
     ]);
   }
@@ -2081,7 +2117,7 @@ function renderAcctPage() {
   const pc = pendCost(m, name), inc = incAcct(name, m);
   let rows = [];
   if (info && name === "Commun") rows = [["+ Parts versées par Julien et Marie", info.c], ["+ Revenus fixes", inc], ["− Dépenses fixes", info.fxC], ["− Dépenses du mois", info.expC], ["+ Crédits reçus", info.incC]];
-  else if (info) rows = [["+ Salaire du mois", info.sal], ["+ Revenus fixes", inc], ["− Part du compte commun", info.c], ["− Dépenses fixes", info.pf], ["− Dépenses du mois", info.pe], pc > 0 ? ["− Paiements en attente", pc] : ["+ Crédits attendus ou reçus", -pc]];
+  else if (info) rows = [["+ Salaire du mois", info.sal], ["+ Revenus fixes", inc], ["− Part du compte commun", info.c], ["− Dépenses fixes", info.pf], ["− Dépenses du mois", info.pe], pc > 0 ? ["− Paiements à venir", pc] : ["+ Crédits attendus ou reçus", -pc]];
   else $("acInfo").textContent = "Saisissez les salaires du mois pour voir le détail.";
   rows.forEach(([t, v], i) => {
     if (i > 1 && !(v > 0)) return;
@@ -2146,7 +2182,7 @@ function renderYear(m) {
   $("yearVal").textContent = eur0(tot);
   $("yearVal").style.color = tot < 0 ? "var(--bad)" : "var(--ok)";
   const det = $("yearDet"); det.innerHTML = "";
-  const rows = [[`+ Salaires et revenus fixes (${n} mois, moyenne si non saisis)`, T.sal], ["− Dépenses fixes", T.fixed], ["− Budget alimentaire Jow", T.jow], ["− Dépenses prévues", T.plan], ["− Dépenses estimées", T.est], [T.pend < 0 ? "+ Crédits en attente" : "− Paiements en attente", Math.abs(T.pend)], ["− Courses et autres dépenses saisies", T.misc]];
+  const rows = [[`+ Salaires et revenus fixes (${n} mois, moyenne si non saisis)`, T.sal], ["− Dépenses fixes", T.fixed], ["− Budget alimentaire Jow", T.jow], ["− Dépenses prévues", T.plan], ["− Dépenses estimées", T.est], [T.pend < 0 ? "+ Crédits à venir" : "− Paiements à venir", Math.abs(T.pend)], ["− Courses et autres dépenses saisies", T.misc]];
   rows.forEach(([t, v], i) => {
     if (i > 1 && !(v > 0)) return;
     const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
@@ -2235,7 +2271,7 @@ function renderContrib(m) {
   const det = $("cbDet"); det.innerHTML = "";
   const line = (t, v, neg) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:1px 0;font-size:.85rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; det.append(d); };
   line("Dépenses fixes (compte commun)", cn.fxC);
-  cn.pays.forEach(w => line("En attente · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
+  cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
   cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
   if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
   if (sh && rounded - cn.total > 0.004) line("Arrondi à la centaine supérieure", rounded - cn.total);
@@ -2316,7 +2352,7 @@ function askContrib(person, month, sh, cn, rest) {
     det.innerHTML = "";
     const line = (t, v, neg, bold) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:2px 0;font-size:.9rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); if (!bold) d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; else d.style.fontWeight = "700"; det.append(d); };
     line("Dépenses fixes (compte commun)", cn.fxC);
-    cn.pays.forEach(w => line("En attente · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
+    cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
     cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
     if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
     const tot = sh.Julien + sh.Marie;
@@ -2505,12 +2541,12 @@ function renderSplit() {
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du compte commun", eur(fx)));
-  if (cn.payT) $("sNeed").append(row("Paiements en attente (compte commun)", eur(cn.payT)));
+  if (cn.payT) $("sNeed").append(row("Paiements à venir (compte commun)", eur(cn.payT)));
   if (cn.inT) $("sNeed").append(row("Crédits (compte commun, déduits)", "− " + eur(cn.inT)));
   if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   const nt = document.createElement("div"); nt.className = "mute"; nt.style.cssText = "font-size:.8rem;margin-top:6px";
-  nt.textContent = "Les montants à verser sont arrondis à la centaine supérieure. Le compte commun sert aux dépenses fixes et aux paiements en attente de ce compte. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
+  nt.textContent = "Les montants à verser sont arrondis à la centaine supérieure. Le compte commun sert aux dépenses fixes et aux paiements à venir de ce compte. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
   $("sNeed").append(nt);
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];

@@ -793,11 +793,18 @@ function render() {
     if (x.account) li.className = "acc-" + x.account;
     const l = document.createElement("div");
     l.innerHTML = "<div></div><div class='mute'></div>";
-    let title, meta;
+    let title, meta, subline = "";
     if (k === "e") {
       const pp = e.planId && (planned.find(q => q.id === e.planId) || { label: e.planLabel });
       title = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
-      meta = `${fr(e.date)} · ${e.care && e.care !== e.category ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category + (e.forWho ? " → " + e.forWho : "")}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+const sub = e.sub || e.shop || "";
+      if (sub && e.label === sub) { title = e.category; subline = sub; }
+      else if (sub === "Autre") { title = e.category; subline = e.label && e.label !== e.category ? e.label : "Autre"; }
+      else if (e.care && e.label === `${e.care} (${e.forWho})`) { title = e.category; subline = e.care + (e.forWho ? " → " + e.forWho : ""); }
+      else if (e.category === "Lentilles" && e.forWho && e.label === `Lentilles (${e.forWho})`) { title = e.category; subline = "pour " + e.forWho; }
+      meta = subline
+        ? `${fr(e.date)}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`
+        : `${fr(e.date)} · ${e.care && e.care !== e.category ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category + (e.forWho ? " → " + e.forWho : "")}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
     } else if (k === "c") {
       title = w.label;
       meta = `${fr(w.doneDate)} · Revenu reçu${w.account ? " · " + w.account : ""} · ${(w.by || "").split("@")[0]}`;
@@ -809,6 +816,7 @@ function render() {
     const pill = document.createElement("span"); pill.textContent = isAuto ? "⟳ Auto" : "✍ Manuel";
     pill.style.cssText = "font-size:.7rem;border-radius:999px;padding:1px 7px;margin-right:6px;white-space:nowrap;color:var(--mute);" + (isAuto ? "border:1px dashed var(--mute)" : "border:1px solid var(--line)");
     l.children[0].append(pill, document.createTextNode(title)); l.children[1].textContent = meta;
+    if (subline) { const sd = document.createElement("div"); sd.textContent = subline; sd.style.cssText = "font-size:.9rem"; l.insertBefore(sd, l.children[1]); }
     if (isAuto) l.children[1].style.fontStyle = "italic";
     const r = document.createElement("div");
     const sp = document.createElement("span"); sp.className = "amt";

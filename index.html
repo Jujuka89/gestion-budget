@@ -2261,7 +2261,12 @@ function commonNeed(m) {
   const pays = waits.filter(w => w.type === "pay" && !w.done && isCom(w) && wMonth(w) === m);
   const ins = waits.filter(w => w.type === "in" && isCom(w) && wMonth(w) === m);
   const incF = incAcct("Commun", m), payT = pays.reduce((t, w) => t + (w.amount || 0), 0), inT = ins.reduce((t, w) => t + (w.amount || 0), 0);
-  return { fxC, pays, ins, incF, payT, inT, total: Math.max(0, fxC + payT - inT - incF) };
+  const sb = estEntries().filter(en => en.zone === "Commun").map(en => {
+    const est = estAmt(en), actual = histExp.filter(e => e.month === m && !e.planId && inZone("Commun", en.category, e)).reduce((t, e) => t + e.amount, 0);
+    return { category: en.category, est, actual, amount: Math.max(est, actual) };
+  }).filter(b => b.amount > 0).sort((a, b) => b.amount - a.amount);
+  const sbT = sb.reduce((t, b) => t + b.amount, 0);
+  return { fxC, pays, ins, incF, payT, inT, sb, sbT, total: Math.max(0, fxC + payT + sbT - inT - incF) };
 }
 const roundUp100 = v => v > 0.004 ? Math.ceil(Math.round(v * 100) / 10000 - 1e-9) * 100 : 0;
 function contribShares(m) {
@@ -2306,6 +2311,7 @@ function renderContrib(m) {
   const det = $("cbDet"); det.innerHTML = "";
   const line = (t, v, neg) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:1px 0;font-size:.85rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; det.append(d); };
   line("Dépenses fixes (compte commun)", cn.fxC);
+  cn.sb.forEach(b => line("Budget partagé · " + b.category + (b.actual > b.est ? " (dépassé)" : ""), b.amount));
   cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
   cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
   if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
@@ -2387,6 +2393,7 @@ function askContrib(person, month, sh, cn, rest) {
     det.innerHTML = "";
     const line = (t, v, neg, bold) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:2px 0;font-size:.9rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); if (!bold) d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; else d.style.fontWeight = "700"; det.append(d); };
     line("Dépenses fixes (compte commun)", cn.fxC);
+    cn.sb.forEach(b => line("Budget partagé · " + b.category + (b.actual > b.est ? " (dépassé)" : ""), b.amount));
     cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
     cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
     if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
@@ -2576,12 +2583,13 @@ function renderSplit() {
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du compte commun", eur(fx)));
+  cn.sb.forEach(b => $("sNeed").append(row("Budget partagé · " + b.category, eur(b.amount))));
   if (cn.payT) $("sNeed").append(row("Paiements à venir (compte commun)", eur(cn.payT)));
   if (cn.inT) $("sNeed").append(row("Crédits (compte commun, déduits)", "− " + eur(cn.inT)));
   if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
   $("sNeed").append(row("Total à répartir", eur(need), true));
   const nt = document.createElement("div"); nt.className = "mute"; nt.style.cssText = "font-size:.8rem;margin-top:6px";
-  nt.textContent = "Les montants à verser sont arrondis à la centaine supérieure. Le compte commun sert aux dépenses fixes et aux paiements à venir de ce compte. Les autres budgets (estimés dont Jow, dépenses prévues) se paient depuis les comptes personnels et s'équilibrent avec la jauge de la première page.";
+  nt.textContent = "Les montants à verser sont arrondis à la centaine supérieure et répartis au prorata des salaires. Le compte commun sert aux dépenses fixes, aux paiements à venir de ce compte et aux budgets partagés (Jow, enfants…). Les budgets personnels et les dépenses prévues se paient depuis les comptes personnels.";
   $("sNeed").append(nt);
   $("sRes").innerHTML = "";
   const tot = a[0] + a[1];

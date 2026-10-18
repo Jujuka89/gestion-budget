@@ -407,7 +407,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <section>
       <h2>Estimer une catégorie</h2>
       <div class="row">
-        <select id="estZone" aria-label="Zone (compte)"><option>Commun</option><option>Marie</option><option>Julien</option></select>
+        <select id="estZone" aria-label="Type de budget"><option value="Commun">Budget partagés</option><option value="Julien">Budget Julien</option><option value="Marie">Budget Marie</option></select>
         <select id="estCat" aria-label="Catégorie"><option>Jow</option><option>Enfants</option><option>Travaux</option><option>Fast Food</option><option>Boulangerie</option><option>Animaux</option><option>Imprévus</option><option>Santé</option><option>Carburant</option><option>Loisirs</option><option>Cigarette</option><option>Jeux</option><option>Autre</option></select>
         <select id="estMode" aria-label="Mode de calcul"><option value="manual">Valeur saisie par moi</option><option value="auto">Moyenne depuis toujours</option></select>
         <input id="estAmt" type="number" step="1" min="0" placeholder="Budget estimé / mois (€)">

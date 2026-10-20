@@ -59,7 +59,6 @@ nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 .fut b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
 #waitList li{padding:6px 8px;margin-top:4px;gap:8px}
 #waitList button{padding:4px 9px;font-size:.85rem}
-@media(max-width:600px){#waitList .vt{display:none}}
 @media(min-width:1000px){
   main{max-width:1900px;padding-left:12px;padding-right:12px}
   #login{max-width:520px;margin-left:auto;margin-right:auto}
@@ -1502,20 +1501,20 @@ function autoRow(a) {
   const f = a.f, isOut = a.kind === "pay", li = document.createElement("li");
   if (f.account) li.className = "acc-" + f.account;
   li.style.borderLeftStyle = "dashed";
-  const box = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
-  box.style.cssText = "flex:1;min-width:0"; t.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+  const top = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
+  li.style.display = "block"; top.style.cssText = "display:flex;justify-content:space-between;align-items:flex-start;gap:8px"; t.style.cssText = "flex:1;min-width:0;overflow-wrap:anywhere";
   const pill = document.createElement("span"); pill.textContent = "⟳ Auto";
   pill.style.cssText = "font-size:.7rem;border-radius:999px;padding:1px 7px;margin-right:6px;white-space:nowrap;color:var(--mute);border:1px dashed var(--mute)";
   t.append(pill, document.createTextNode(f.label));
-  m.className = "mute"; m.style.cssText = "font-size:.8rem;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+  m.className = "mute"; m.style.cssText = "font-size:.8rem;font-style:italic;margin-top:2px";
   m.textContent = `${new Date(a.date).toLocaleDateString("fr-FR")} · ${isOut ? "prélèvement" : "versement"} automatique${f.account ? " · " + f.account : ""}`;
-  box.append(t, m);
-  const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center;flex:none;justify-content:flex-end";
+  const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;margin-top:6px;flex-wrap:wrap";
   const amt = document.createElement("span"); amt.className = "amt"; amt.textContent = (isOut ? "− " : "+ ") + eur(a.p);
-  amt.style.cssText = "font-weight:700;color:" + (isOut ? "var(--bad)" : "var(--ok)");
+  amt.style.cssText = "font-weight:700;white-space:nowrap;color:" + (isOut ? "var(--bad)" : "var(--ok)");
+  top.append(t, amt);
   const b = document.createElement("button"); b.className = "ghost"; b.textContent = "Gérer"; b.setAttribute("aria-label", "Gérer " + f.label);
   b.onclick = () => { document.querySelectorAll("nav button").forEach(n => n.classList.remove("on")); isOut ? openDetail(f.id) : openIncDetail(f.id); };
-  r.append(amt, b); li.append(box, r); return li;
+  r.append(b); li.append(top, m, r); return li;
 }
 let waitAll = false;
 function refundInfo(w) {
@@ -1535,21 +1534,21 @@ function renderWait() {
     if (it.a) { ul.append(autoRow(it.a)); return; }
     const w = it.w;
     const li = document.createElement("li"), isIn = w.type === "in";
+    li.style.display = "block";
     if (w.account) li.className = "acc-" + w.account;
-    const box = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
-    box.style.cssText = "flex:1;min-width:0";
-    t.textContent = w.label; m.className = "mute"; m.style.cssText = "font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+    const top = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
+    top.style.cssText = "display:flex;justify-content:space-between;align-items:flex-start;gap:8px";
+    t.textContent = w.label; m.className = "mute"; m.style.cssText = "font-size:.8rem;margin-top:2px";
     const late = !w.done && w.due && w.due < today;
     m.textContent = (isIn ? "Revenu attendu" : "Paiement à faire") + (!isIn && w.cat ? " · " + w.cat : "") + (w.account ? " · " + w.account : "") + (w.due ? " · " + new Date(w.due).toLocaleDateString("fr-FR") : "") + (late ? " · en retard" : "") + (w.done ? (isIn ? " · reçu" : " · payé") : "");
     const ri = refundInfo(w);
     if (ri) { m.textContent += ri; m.style.whiteSpace = "normal"; }
     if (late) m.style.color = "var(--bad)";
-    t.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" + (w.done ? ";text-decoration:line-through;color:var(--mute)" : "");
-    box.append(t, m);
-    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center;flex:none;justify-content:flex-end";
+    t.style.cssText = "flex:1;min-width:0;overflow-wrap:anywhere" + (w.done ? ";text-decoration:line-through;color:var(--mute)" : "");
+    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;margin-top:6px;flex-wrap:wrap";
     const a = document.createElement("span"); a.className = "amt"; a.textContent = (isIn ? "+ " : "− ") + eur(w.amount || 0);
-    a.style.cssText = "font-weight:700;color:" + (isIn ? "var(--ok)" : "var(--bad)");
-    r.append(a);
+    a.style.cssText = "font-weight:700;white-space:nowrap;color:" + (isIn ? "var(--ok)" : "var(--bad)");
+    top.append(t, a);
     if (!w.done) {
       const ok = document.createElement("button"); ok.innerHTML = "✓<span class='vt'> Valider</span>"; ok.setAttribute("aria-label", "Valider " + w.label);
       ok.onclick = () => askValidate(w);
@@ -1561,7 +1560,7 @@ function renderWait() {
       const ed2 = document.createElement("button"); ed2.className = "ghost"; ed2.textContent = "✎"; ed2.setAttribute("aria-label", "Modifier " + w.label);
       ed2.onclick = () => startWaitEdit(w); r.append(ed2);
     }
-    li.append(box, r); ul.append(li);
+    li.append(top, m); if (r.children.length) li.append(r); ul.append(li);
   });
   if (arr.length > 5) {
     const li = document.createElement("li"), b = document.createElement("button");
@@ -2255,25 +2254,26 @@ function salInfo(x) {
   return { Julien: J, Marie: M, estJ: !(rj > 0) && J > 0, estM: !(rm > 0) && M > 0 };
 }
 function salPair(m) { const i = salInfo(m); return i ? { Julien: i.Julien, Marie: i.Marie } : null; }
+const isSharedBudgetExp = e => !e.planId && !!commonEntry(e.category) && !ownersOf(e.category).includes(e.account);
 function commonNeed(m) {
   const isCom = x => x.account !== "Julien" && x.account !== "Marie";
   const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
   const pays = waits.filter(w => w.type === "pay" && !w.done && isCom(w) && wMonth(w) === m);
   const ins = waits.filter(w => w.type === "in" && isCom(w) && wMonth(w) === m);
   const incF = incAcct("Commun", m), payT = pays.reduce((t, w) => t + (w.amount || 0), 0), inT = ins.reduce((t, w) => t + (w.amount || 0), 0);
-  const sb = estEntries().filter(en => en.zone === "Commun").map(en => {
-    const est = estAmt(en), actual = histExp.filter(e => e.month === m && !e.planId && inZone("Commun", en.category, e)).reduce((t, e) => t + e.amount, 0);
-    return { category: en.category, est, actual, amount: Math.max(est, actual) };
-  }).filter(b => b.amount > 0).sort((a, b) => b.amount - a.amount);
-  const sbT = sb.reduce((t, b) => t + b.amount, 0);
-  return { fxC, pays, ins, incF, payT, inT, sb, sbT, total: Math.max(0, fxC + payT + sbT - inT - incF) };
+  const list = histExp.filter(e => e.month === m && isSharedBudgetExp(e)), sum = l => l.reduce((t, e) => t + e.amount, 0), byCat = {};
+  list.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
+  const shared = Object.entries(byCat).map(([cat, amount]) => ({ cat, amount })).sort((x, y) => y.amount - x.amount), sharedT = sum(list);
+  const direct = { Julien: sum(list.filter(e => e.account === "Julien")), Marie: sum(list.filter(e => e.account === "Marie")) };
+  return { fxC, pays, ins, incF, payT, inT, shared, sharedT, direct, total: Math.max(0, fxC + payT + sharedT - inT - incF) };
 }
 const roundUp100 = v => v > 0.004 ? Math.ceil(Math.round(v * 100) / 10000 - 1e-9) * 100 : 0;
 function contribShares(m) {
   const sp = salPair(m); if (!sp) return null;
   const tot = sp.Julien + sp.Marie; if (!(tot > 0)) return null;
-  const need = commonNeed(m).total, cJ = Math.round(need * sp.Julien / tot * 100) / 100, cM = Math.round((need - cJ) * 100) / 100;
-  return { Julien: roundUp100(cJ), Marie: roundUp100(cM), rawJ: cJ, rawM: cM, need, pct: { Julien: sp.Julien / tot, Marie: sp.Marie / tot } };
+  const cn = commonNeed(m), S = cn.total, cJ = Math.round(S * sp.Julien / tot * 100) / 100, cM = Math.round((S - cJ) * 100) / 100;
+  const nJ = Math.max(0, Math.round((cJ - cn.direct.Julien) * 100) / 100), nM = Math.max(0, Math.round((cM - cn.direct.Marie) * 100) / 100);
+  return { Julien: roundUp100(nJ), Marie: roundUp100(nM), rawJ: nJ, rawM: nM, need: S, direct: cn.direct, pct: { Julien: sp.Julien / tot, Marie: sp.Marie / tot } };
 }
 function fillTopSal() {
   const m = $("month").value, d = salaries[m], ix = jmIdx(), si = salInfo(m);
@@ -2311,11 +2311,13 @@ function renderContrib(m) {
   const det = $("cbDet"); det.innerHTML = "";
   const line = (t, v, neg) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:1px 0;font-size:.85rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; det.append(d); };
   line("Dépenses fixes (compte commun)", cn.fxC);
+  cn.shared.forEach(g => line("Budget partagé · " + g.cat, g.amount));
   cn.sb.forEach(b => line("Budget partagé · " + b.category + (b.actual > b.est ? " (dépassé)" : ""), b.amount));
   cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
   cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
   if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
-  if (sh && rounded - cn.total > 0.004) line("Arrondi à la centaine supérieure", rounded - cn.total);
+  if (sh && cn.direct.Julien + cn.direct.Marie > 0.004) line("Déjà payé directement (Julien + Marie)", cn.direct.Julien + cn.direct.Marie, true);
+  if (sh && rounded - (sh.rawJ + sh.rawM) > 0.004) line("Arrondi à la centaine supérieure", rounded - (sh.rawJ + sh.rawM));
   const box = $("cbPeople"); box.innerHTML = ""; let pending = 0; $("contribBox").hidden = m > today.slice(0, 7);
   if (!sh) { box.innerHTML = '<div class="mute" style="font-size:.85rem">Saisissez les salaires du mois pour calculer la part de chacun.</div>'; return; }
   ["Julien", "Marie"].forEach(p => {
@@ -2324,7 +2326,7 @@ function renderContrib(m) {
     if (!(rest > 0.5)) return; pending++;
     const row = document.createElement("div"); row.className = "cat"; row.style.cssText = "padding:6px 0;border-top:1px solid var(--line);align-items:center;gap:8px;flex-wrap:wrap";
     const left = document.createElement("span"); left.innerHTML = "<b></b> <small class='mute'></small>";
-    left.children[0].textContent = p; left.children[1].textContent = Math.round(sh.pct[p] * 100) + " % · à verser " + eur0(required) + (done > 0 ? " · déjà versé " + eur0(done) : "");
+    left.children[0].textContent = p; left.children[1].textContent = Math.round(sh.pct[p] * 100) + " % · à verser " + eur0(required) + (sh.direct[p] > 0 ? " · déjà payé en direct " + eur0(sh.direct[p]) : "") + (done > 0 ? " · déjà versé " + eur0(done) : "");
     const right = document.createElement("span"); right.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end";
     if (rest > 0.5) {
       const inp = document.createElement("input"); inp.type = "number"; inp.step = "0.01"; inp.min = "0"; inp.style.width = "110px";
@@ -2393,12 +2395,14 @@ function askContrib(person, month, sh, cn, rest) {
     det.innerHTML = "";
     const line = (t, v, neg, bold) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:2px 0;font-size:.9rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); if (!bold) d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; else d.style.fontWeight = "700"; det.append(d); };
     line("Dépenses fixes (compte commun)", cn.fxC);
+  cn.shared.forEach(g => line("Budget partagé · " + g.cat, g.amount));
     cn.sb.forEach(b => line("Budget partagé · " + b.category + (b.actual > b.est ? " (dépassé)" : ""), b.amount));
     cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
     cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
     if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
+  if (sh && cn.direct.Julien + cn.direct.Marie > 0.004) line("Déjà payé directement (Julien + Marie)", cn.direct.Julien + cn.direct.Marie, true);
     const tot = sh.Julien + sh.Marie;
-    if (tot - cn.total > 0.004) line("Arrondi à la centaine supérieure", tot - cn.total);
+    if (tot - (sh.rawJ + sh.rawM) > 0.004) line("Arrondi à la centaine supérieure", tot - (sh.rawJ + sh.rawM));
     line("Total à répartir", tot, false, true);
     line("Votre part (" + Math.round(sh.pct[person] * 100) + " %, arrondie)", sh[person], false, true);
     $("cbDlgAmt").value = rest;
@@ -2503,7 +2507,7 @@ const isSharedExp = e => {
   if (e.planId || e.category === "Courses" || e.category === "Jow") return true;
   return !!commonEntry(e.category) && !ownersOf(e.category).includes(e.account);
 };
-const isCounted = e => (e.account === "Julien" || e.account === "Marie") && !e.planId && (["Jow", "Animaux", "Fast Food", "Enfants"].includes(e.category) || (e.category === "Santé" && (e.forWho === "Kélia" || e.forWho === "Milio")));
+const isCounted = e => !isSharedBudgetExp(e) && (e.account === "Julien" || e.account === "Marie") && !e.planId && (["Jow", "Animaux", "Fast Food", "Enfants"].includes(e.category) || (e.category === "Santé" && (e.forWho === "Kélia" || e.forWho === "Milio")));
 function monthDiff(x) {
   const list = histExp.filter(e => e.month === x && isCounted(e)), sum = l => l.reduce((t, e) => t + e.amount, 0);
   const fx = A => fixed.filter(f => f.account === A).reduce((t, f) => t + (priceAt(f, x) || 0), 0), fJ = fx("Julien"), fM = fx("Marie");
@@ -2584,6 +2588,8 @@ function renderSplit() {
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du compte commun", eur(fx)));
   cn.sb.forEach(b => $("sNeed").append(row("Budget partagé · " + b.category, eur(b.amount))));
+  cn.shared.forEach(g => $("sNeed").append(row("Budget partagé · " + g.cat, eur(g.amount))));
+  if (cn.direct.Julien + cn.direct.Marie > 0.004) $("sNeed").append(row("Déjà payé directement (Julien + Marie), déduit", "− " + eur(cn.direct.Julien + cn.direct.Marie)));
   if (cn.payT) $("sNeed").append(row("Paiements à venir (compte commun)", eur(cn.payT)));
   if (cn.inT) $("sNeed").append(row("Crédits (compte commun, déduits)", "− " + eur(cn.inT)));
   if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
@@ -2595,7 +2601,7 @@ function renderSplit() {
   const tot = a[0] + a[1];
   if (!(tot > 0)) { $("sBar").style.width = "0"; $("sRes").textContent = "Saisissez les salaires pour voir la répartition."; return; }
   if (estNote) { const p = document.createElement("div"); p.className = "mute"; p.textContent = estNote; $("sRes").append(p); }
-  const c0 = Math.round(need * a[0] / tot * 100) / 100, c = [c0, Math.round((need - c0) * 100) / 100].map(roundUp100);
+  const c0 = Math.round(need * a[0] / tot * 100) / 100, c = [Math.max(0, c0 - cn.direct.Julien), Math.max(0, Math.round((need - c0) * 100) / 100 - cn.direct.Marie)].map(roundUp100);
   $("sBar").style.width = (a[0] / tot * 100) + "%";
   a.forEach((v, i) => {
     const box = document.createElement("div"); box.style.cssText = "border-top:1px solid var(--line);margin-top:12px;padding-top:10px";

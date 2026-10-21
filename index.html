@@ -2312,7 +2312,6 @@ function renderContrib(m) {
   const line = (t, v, neg) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:1px 0;font-size:.85rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; det.append(d); };
   line("Dépenses fixes (compte commun)", cn.fxC);
   cn.shared.forEach(g => line("Budget partagé · " + g.cat, g.amount));
-  cn.sb.forEach(b => line("Budget partagé · " + b.category + (b.actual > b.est ? " (dépassé)" : ""), b.amount));
   cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
   cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
   if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
@@ -2396,7 +2395,6 @@ function askContrib(person, month, sh, cn, rest) {
     const line = (t, v, neg, bold) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:2px 0;font-size:.9rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); if (!bold) d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; else d.style.fontWeight = "700"; det.append(d); };
     line("Dépenses fixes (compte commun)", cn.fxC);
   cn.shared.forEach(g => line("Budget partagé · " + g.cat, g.amount));
-    cn.sb.forEach(b => line("Budget partagé · " + b.category + (b.actual > b.est ? " (dépassé)" : ""), b.amount));
     cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
     cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
     if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
@@ -2587,7 +2585,6 @@ function renderSplit() {
   const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
   $("sNeed").innerHTML = "";
   $("sNeed").append(row("Dépenses fixes du compte commun", eur(fx)));
-  cn.sb.forEach(b => $("sNeed").append(row("Budget partagé · " + b.category, eur(b.amount))));
   cn.shared.forEach(g => $("sNeed").append(row("Budget partagé · " + g.cat, eur(g.amount))));
   if (cn.direct.Julien + cn.direct.Marie > 0.004) $("sNeed").append(row("Déjà payé directement (Julien + Marie), déduit", "− " + eur(cn.direct.Julien + cn.direct.Marie)));
   if (cn.payT) $("sNeed").append(row("Paiements à venir (compte commun)", eur(cn.payT)));

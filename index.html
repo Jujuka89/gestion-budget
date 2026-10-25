@@ -176,6 +176,7 @@ addEventListener("unhandledrejection", function (e) { var d = document.getElemen
     <h2>📅 À venir…</h2>
     <details class="mute" style="font-size:.85rem"><summary>ℹ️ Comment ça marche</summary><p style="margin:6px 0 0">Les prochains paiements et crédits : les transactions cochées « À venir » à la saisie (chèque, remboursement…), et les prélèvements ou versements automatiques des 30 prochains jours (⟳ Auto). Les premières sont prises en compte dans le budget du mois prévu. Cliquez sur « ✓ Valider » quand le paiement est débité ou le crédit reçu : un paiement devient alors une vraie dépense.</p></details>
     <div id="waitTotal" class="mute" style="margin-top:10px"></div>
+    <div id="waitFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"></div>
     <ul id="waitList"></ul>
   </section>
 
@@ -1516,7 +1517,7 @@ function autoRow(a) {
   b.onclick = () => { document.querySelectorAll("nav button").forEach(n => n.classList.remove("on")); isOut ? openDetail(f.id) : openIncDetail(f.id); };
   r.append(b); li.append(top, m, r); return li;
 }
-let waitAll = false;
+let waitAll = false, waitFilter = "manual";
 function refundInfo(w) {
   if (w.type === "in" || w.done || !w.mutId) return "";
   const it = mutItems.find(i => i.id === w.mutId); if (!it) return "";
@@ -1527,10 +1528,18 @@ function renderWait() {
   const ul = $("waitList"); ul.innerHTML = "";
   const ua = upcomingAuto(), uaSum = k => ua.filter(a => a.kind === k).reduce((t, a) => t + a.p, 0);
   const open = waits.filter(w => !w.done), sum = t => open.filter(w => w.type === t).reduce((a, w) => a + (w.amount || 0), 0);
-  $("waitTotal").textContent = (waits.length || ua.length) ? `À payer : ${eur(sum("pay") + uaSum("pay"))} · À recevoir : ${eur(sum("in") + uaSum("in"))}` : "Rien à venir pour l'instant.";
   const arr = [...waits.map(w => ({ w, key: w.done ? "z" + (w.doneDate || "") : (w.due || "9999") })), ...ua.map(a => ({ a, key: a.date }))]
     .sort((x, y) => x.key.localeCompare(y.key) || ((x.w || x.a.f).label || "").localeCompare((y.w || y.a.f).label || ""));
-  (waitAll ? arr : arr.slice(0, 5)).forEach(it => {
+  const view = waitFilter === "manual" ? arr.filter(x => x.w) : waitFilter === "auto" ? arr.filter(x => x.a) : arr;
+  const sumView = k => view.reduce((t, x) => t + (x.a ? (x.a.kind === k ? x.a.p : 0) : (!x.w.done && x.w.type === k ? (x.w.amount || 0) : 0)), 0);
+  $("waitTotal").textContent = arr.length ? `À payer : ${eur(sumView("pay"))} · À recevoir : ${eur(sumView("in"))}` : "Rien à venir pour l'instant.";
+  const fb = $("waitFilter"); fb.innerHTML = "";
+  [["all", `Tout (${arr.length})`], ["manual", `✍ Manuelles (${arr.filter(x => x.w).length})`], ["auto", `⟳ Automatiques (${arr.filter(x => x.a).length})`]].forEach(([v, t]) => {
+    const b = document.createElement("button"); b.textContent = t; b.className = waitFilter === v ? "" : "ghost"; b.style.cssText = "padding:4px 10px;font-size:.8rem";
+    b.onclick = () => { waitFilter = v; waitAll = false; renderWait(); }; fb.append(b);
+  });
+  if (arr.length && !view.length) { const li = document.createElement("li"); li.className = "mute"; li.textContent = "Rien dans cette vue."; ul.append(li); }
+  (waitAll ? view : view.slice(0, 5)).forEach(it => {
     if (it.a) { ul.append(autoRow(it.a)); return; }
     const w = it.w;
     const li = document.createElement("li"), isIn = w.type === "in";
@@ -1562,9 +1571,9 @@ function renderWait() {
     }
     li.append(top, m); if (r.children.length) li.append(r); ul.append(li);
   });
-  if (arr.length > 5) {
+  if (view.length > 5) {
     const li = document.createElement("li"), b = document.createElement("button");
-    b.className = "ghost"; b.style.width = "100%"; b.textContent = waitAll ? "Réduire" : `Voir les ${arr.length - 5} autres`;
+    b.className = "ghost"; b.style.width = "100%"; b.textContent = waitAll ? "Réduire" : `Voir les ${view.length - 5} autres`;
     b.onclick = () => { waitAll = !waitAll; renderWait(); };
     li.append(b); ul.append(li);
   }

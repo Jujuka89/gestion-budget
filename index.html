@@ -1,0 +1,2638 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget de la maison</title>
+<style>
+:root{--bg:#eef2ef;--card:#fff;--ink:#1d2b26;--mute:#6b7a73;--line:#d9e1dc;--ok:#1f6f55;--warn:#c47a12;--bad:#b3392f;--rose:#fde4ee;--rose-b:#e0578a;--bleu:#dcebfb;--bleu-b:#3b82c4;--blanc:#fff;--blanc-b:#b9c4bd}
+@media(prefers-color-scheme:dark){:root{--bg:#141a17;--card:#1c2420;--ink:#e6efe9;--mute:#93a39b;--line:#2b3731;--ok:#4fc29a;--warn:#e0a443;--bad:#e8736a;--rose:#4a2535;--rose-b:#f08ab0;--bleu:#1f3550;--bleu-b:#6aaaf0;--blanc:#1c2420;--blanc-b:#5b6b63}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,'Iowan Old Style',serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.4rem;margin:0}
+h2{font-size:1.05rem;margin:0 0 12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-top:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+input,select,button{font:inherit;color:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--bg);min-width:0}
+button{cursor:pointer;background:var(--ok);color:#fff;border-color:var(--ok)}
+button.ghost{background:none;color:var(--mute);border-color:var(--line)}
+:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 130px}
+.big{font-size:2.6rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.bar{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin:12px 0 6px}
+.bar i{display:block;height:100%;background:var(--ok);width:0}
+.mute{color:var(--mute);font-size:.9rem}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);align-items:center}
+li:first-child{border-top:0}
+li .amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+li button{padding:3px 9px;margin-left:8px}
+.cat{display:flex;justify-content:space-between;padding:4px 0}
+#err{color:var(--bad);min-height:1.4em;margin:8px 0 0}
+.rowbtn{display:flex;justify-content:space-between;gap:10px;flex:1;width:100%;background:none;color:var(--ink);border:0;padding:6px 0;text-align:left;border-radius:0}
+.rowbtn:hover .nm{text-decoration:underline}
+.rowbtn .amt{text-align:right}
+.rowbtn small{display:block;color:var(--mute);font-size:.8rem}
+.cathead{display:flex;justify-content:space-between;gap:10px;padding-top:16px;font-weight:700;color:var(--ok)}
+.cathead small{font-weight:400;color:var(--mute)}
+.ch{width:100%;height:auto;display:block}
+.ch .gl{stroke:var(--line)}
+.ch .tx{fill:var(--mute);font:11px Georgia,serif}
+.ch path{fill:none;stroke:var(--ok);stroke-width:2.5;stroke-linejoin:round}
+.ch circle{fill:var(--ok)}
+nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+nav button{flex:1 1 auto;background:none;color:var(--mute);border-color:var(--line)}
+nav button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+#list li{padding:10px;margin-top:6px;border-top:0;border-left:4px solid transparent;border-radius:8px}
+#list li.acc-Marie{background:var(--rose);border-left-color:var(--rose-b)}
+#list li.acc-Julien{background:var(--bleu);border-left-color:var(--bleu-b)}
+#list li.acc-Commun{background:var(--blanc);border-left-color:var(--blanc-b)}
+#waitList li{padding:10px;margin-top:6px;border-top:0;border-left:4px solid transparent;border-radius:8px}
+#waitList li.acc-Marie{background:var(--rose);border-left-color:var(--rose-b)}
+#waitList li.acc-Julien{background:var(--bleu);border-left-color:var(--bleu-b)}
+#waitList li.acc-Commun{background:var(--blanc);border-left-color:var(--blanc-b)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 8px;font-size:.85rem;color:var(--mute)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border-left:4px solid}
+.fut{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;min-width:0}
+.fut b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
+#waitList li{padding:6px 8px;margin-top:4px;gap:8px}
+#waitList button{padding:4px 9px;font-size:.85rem}
+@media(min-width:1000px){
+  main{max-width:1900px;padding-left:12px;padding-right:12px}
+  #login{max-width:520px;margin-left:auto;margin-right:auto}
+  #app > div[id^="tab"]:not(#tabMonth){max-width:720px;margin-left:auto;margin-right:auto}
+  #monthGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
+  #monthGrid > div{min-width:0;overflow-wrap:anywhere}
+  #colL{grid-column:1;grid-row:1}
+  #colM{grid-column:2;grid-row:1}
+  #colR{grid-column:3;grid-row:1}
+}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+
+<script>
+addEventListener("error", function (e) { var d = document.getElementById("err"); if (d) d.textContent = "Erreur de chargement : " + (e.message || "ouvrez la console (F12)"); });
+addEventListener("unhandledrejection", function (e) { var d = document.getElementById("err"); if (d) d.textContent = "Erreur : " + ((e.reason && e.reason.message) || e.reason); });
+</script>
+<section id="login">
+  <h1>Budget de la maison</h1>
+  <p class="mute">Connectez-vous pour accéder à vos dépenses.</p>
+  <div class="row">
+    <input id="email" type="email" placeholder="Email" autocomplete="username">
+    <input id="pwd" type="password" placeholder="Mot de passe" autocomplete="current-password">
+    <button id="btnLogin">Se connecter</button>
+  </div>
+  <p id="err" role="alert"></p>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <h1>Budget de la maison</h1>
+  </header>
+
+  <section id="accessErr" hidden style="border-color:var(--bad)">
+    <div id="accessMsg"></div>
+  </section>
+
+  <nav>
+    <button class="on" data-t="month">Mois en cours</button>
+    <button data-t="planned">Dépenses prévues</button>
+    <button data-t="estimated">Dépenses estimées</button>
+    <button data-t="split">Répartition</button>
+  </nav>
+
+  <div id="tabMonth">
+  <div id="monthGrid">
+    <div id="colM">
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+        <button class="ghost" id="mPrev" aria-label="Mois précédent" style="font-size:1.4rem;padding:4px 14px">‹</button>
+        <div id="monthBig" role="heading" aria-level="2" style="font-size:2.2rem;font-weight:700;text-align:center;text-transform:capitalize;line-height:1.1"></div>
+        <button class="ghost" id="mNext" aria-label="Mois suivant" style="font-size:1.4rem;padding:4px 14px">›</button>
+      </div>
+      <section id="salBox">
+        <div class="cat" style="padding:0"><b>💶 Salaires du mois</b></div>
+        <div id="topRowJ" class="row" style="margin-top:8px;align-items:flex-end">
+          <label class="mute" style="font-size:.8rem">Julien <span id="topStJ"></span><input id="topSalJ" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
+          <button id="topBtnJ" style="flex:0 0 auto">Valider</button>
+        </div>
+        <div id="topRowM" class="row" style="margin-top:8px;align-items:flex-end">
+          <label class="mute" style="font-size:.8rem">Marie <span id="topStM"></span><input id="topSalM" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%"></label>
+          <button id="topBtnM" style="flex:0 0 auto">Valider</button>
+        </div>
+      </section>
+      <section id="contribBox">
+        <div class="cat" style="padding:0"><b>🏦 À verser sur le compte commun</b><b id="cbTotal"></b></div>
+        <div id="cbDet" style="margin-top:6px"></div>
+        <div id="cbPeople" style="margin-top:8px"></div>
+      </section>
+      <section id="balBox">
+        <div class="cat" style="padding:0"><b>⚖️ Équilibre des budgets</b></div>
+        <div style="position:relative;height:28px;border-radius:10px;background:var(--line);margin:12px 0 4px;overflow:hidden">
+          <i id="balFill" style="position:absolute;top:0;bottom:0;left:50%;width:0"></i>
+          <i style="position:absolute;left:calc(50% - 1px);top:0;bottom:0;width:2px;background:var(--ink);opacity:.45"></i>
+          <span id="balVal" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:700;color:var(--ink);text-shadow:0 0 4px var(--card),0 0 4px var(--card)"></span>
+        </div>
+        <div class="cat" style="padding:0;font-size:.8rem"><span style="color:var(--bleu-b)">◀ Julien</span><span class="mute">équilibre</span><span style="color:var(--rose-b)">Marie ▶</span></div>
+        <div id="balTxt" style="font-size:1.15rem;font-weight:700;margin-top:8px"></div>
+        <div id="balSub2" class="mute" style="font-size:.8rem"></div>
+        <details style="margin-top:8px;font-size:.9rem"><summary class="mute">Voir le détail des budgets (partage au prorata des salaires)</summary>
+          <div id="balDet"></div>
+        </details>
+      </section>
+  <section id="sNotice" hidden>
+    <div>⚠️ Les salaires de ce mois ne sont pas encore saisis : la répartition du compte commun ne peut pas être calculée.</div>
+    <div class="row" style="margin-top:10px"><button id="btnGoSplit">Saisir les salaires</button></div>
+  </section>
+  <div class="mute" style="margin-top:16px;font-size:.85rem">Prévisions des 3 prochains mois (ce qu'il restera sur les salaires)</div>
+  <div id="future" style="display:flex;gap:8px;margin-top:6px"></div>
+  <section>
+    <div class="mute">Il vous restera à la fin du mois sur vos deux salaires</div>
+    <div class="big" id="left">0 €</div>
+    <div class="bar"><i id="fill"></i></div>
+    <div id="yearBox" style="margin:12px 0 0;padding:10px;border:1px dashed var(--line);border-radius:8px" hidden>
+      <div class="cat" style="padding:0"><span class="mute" id="yearLab"></span><b id="yearVal" style="font-size:1.3rem;font-variant-numeric:tabular-nums"></b></div>
+      <div class="mute" style="font-size:.75rem">Estimation sur l'année entière : salaires (moyenne si non saisis) moins dépenses fixes, Jow, dépenses prévues et estimées, et dépenses saisies.</div>
+      <details style="margin-top:6px;font-size:.85rem"><summary class="mute">Voir le détail de l'année</summary><div id="yearDet" style="margin-top:6px"></div></details>
+    </div>
+    <div id="acctBox" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
+    <div class="mute" id="sum"></div>
+  </section>
+
+
+    </div>
+    <div id="colL">
+  <section>
+    <h2>Ajouter une transaction</h2>
+    <button id="btnOpenTx" style="width:100%;font-size:1.05rem;padding:12px">➕ Ajouter une transaction</button>
+    <div class="mute" style="font-size:.8rem;margin-top:6px">Dépense ou crédit, avec l'option « À venir » (médecin, chèque…).</div>
+  </section>
+
+  <section>
+    <h2>📅 À venir…</h2>
+    <details class="mute" style="font-size:.85rem"><summary>ℹ️ Comment ça marche</summary><p style="margin:6px 0 0">Les prochains paiements et crédits : les transactions cochées « À venir » à la saisie (chèque, remboursement…), et les prélèvements ou versements automatiques des 30 prochains jours (⟳ Auto). Les premières sont prises en compte dans le budget du mois prévu. Cliquez sur « ✓ Valider » quand le paiement est débité ou le crédit reçu : un paiement devient alors une vraie dépense.</p></details>
+    <div id="waitTotal" class="mute" style="margin-top:10px"></div>
+    <div id="waitFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"></div>
+    <ul id="waitList"></ul>
+  </section>
+
+  <section>
+    <button class="ghost" id="goCatView" style="width:100%;text-align:left;padding:12px">
+      <b>📊 Détail par catégorie ›</b>
+      <div id="catsSum" class="mute" style="font-size:.85rem;margin-top:4px;font-weight:400"></div>
+    </button>
+  </section>
+
+  <div class="row" style="margin-top:16px"><button id="goFixed">Dépenses fixes</button><button id="goInc">Revenus fixes</button><button id="goMut">Mutuelle</button><button id="goCats">Catégories</button></div>
+    </div>
+    <div id="colR">
+  <section>
+    <h2>Transactions du mois</h2>
+    <div class="legend">
+      <span><i style="background:var(--rose);border-color:var(--rose-b)"></i>Marie</span>
+      <span><i style="background:var(--bleu);border-color:var(--bleu-b)"></i>Julien</span>
+      <span><i style="background:var(--blanc);border-color:var(--blanc-b)"></i>Compte commun</span>
+    </div>
+    <div id="txFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px"></div>
+    <ul id="list"></ul>
+    <p id="empty" class="mute">Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.</p>
+  </section>
+    </div>
+  </div>
+  </div>
+
+  <div id="tabFixed" hidden>
+    <section>
+      <div class="mute">Total des dépenses fixes par mois</div>
+      <div class="big" id="fixedTotal">0 €</div>
+      <div class="mute" id="fixedYear"></div>
+      <div id="fixBars" style="margin-top:10px"></div>
+      <p class="mute">Ces dépenses sont déduites automatiquement du budget de chaque mois, à partir du mois de départ choisi. Cliquez sur une dépense pour voir son détail.</p>
+    </section>
+    <section>
+      <h2 id="ftitle">Ajouter une dépense fixe</h2>
+      <div class="row">
+        <input id="flabel" placeholder="Libellé (ex. loyer, internet)">
+        <input id="famount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+        <select id="fcategory">
+          <option>Maison / Charges</option><option>Prêt</option><option>Abonnements</option>
+          <option>Assurances / Santé</option><option>Animaux</option><option>Enfants</option><option>Autre</option>
+        </select>
+        <select id="faccount" aria-label="Compte de prélèvement">
+          <option value="Julien">Prélevé sur Julien</option><option value="Marie">Prélevé sur Marie</option><option value="Commun" selected>Prélevé sur Commun</option>
+        </select>
+        <input id="fday" type="number" min="1" max="31" placeholder="Jour du mois" aria-label="Jour du prélèvement">
+        <input id="fstart" type="month" aria-label="À partir du mois">
+        <input id="fchange" type="month" aria-label="Nouveau montant à partir du mois" hidden>
+        <button id="btnFixed">Ajouter</button>
+        <button class="ghost" id="btnCancel" hidden>Annuler</button>
+      </div>
+      <p class="mute" id="fhint" hidden>Si vous changez le montant, il s'applique à partir du mois choisi dans le dernier champ ; les mois précédents gardent l'ancien prix.</p>
+    </section>
+    <section>
+      <h2>Vos dépenses fixes</h2>
+      <ul id="fixedList"></ul>
+      <p id="fixedEmpty" class="mute">Aucune dépense fixe. Ajoutez votre loyer ou vos abonnements ci-dessus.</p>
+    </section>
+  </div>
+
+  <div id="tabInc" hidden>
+    <section>
+      <div class="mute">Total des revenus fixes par mois</div>
+      <div class="big" id="incTotal" style="color:var(--ok)">0 €</div>
+      <div class="mute" id="incYear"></div>
+      <div id="incBars" style="margin-top:10px"></div>
+      <p class="mute">Ces revenus sont ajoutés automatiquement au budget de chaque mois, à partir du mois de départ choisi. Cliquez sur un revenu pour voir son détail.</p>
+    </section>
+    <section>
+      <h2 id="itTitle">Ajouter un revenu fixe</h2>
+      <div class="row">
+        <input id="ilabel" placeholder="Libellé (ex. allocations, pension)">
+        <input id="iamount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+        <select id="icategory">
+          <option>Allocations</option><option>Pension</option><option>Revenus locatifs</option><option>Prime / Salaire annexe</option><option>Autre</option>
+        </select>
+        <select id="iaccount" aria-label="Compte de prélèvement">
+          <option value="Julien">Versé sur Julien</option><option value="Marie">Versé sur Marie</option><option value="Commun" selected>Versé sur Commun</option>
+        </select>
+        <input id="iday" type="number" min="1" max="31" placeholder="Jour du mois" aria-label="Jour du versement">
+        <input id="istart" type="month" aria-label="À partir du mois">
+        <input id="ichange" type="month" aria-label="Nouveau montant à partir du mois" hidden>
+        <button id="btnInc">Ajouter</button>
+        <button class="ghost" id="btnIncCancel" hidden>Annuler</button>
+      </div>
+      <p class="mute" id="ihint" hidden>Si vous changez le montant, il s'applique à partir du mois choisi dans le dernier champ ; les mois précédents gardent l'ancien prix.</p>
+    </section>
+    <section>
+      <h2>Vos revenus fixes</h2>
+      <ul id="incList"></ul>
+      <p id="incEmpty" class="mute">Aucun revenu fixe. Ajoutez vos allocations ou une pension ci-dessus.</p>
+    </section>
+  </div>
+
+  <div id="tabAcct" hidden>
+    <button class="ghost" id="btnAcctBack" style="margin-top:16px">← Retour</button>
+    <section id="acSum">
+      <h2 id="acTitle"></h2>
+      <div class="mute">💰 Argent sur le compte (fin de mois)</div>
+      <div class="big" id="acReal"></div>
+      <div class="mute" style="margin-top:8px">Il reste ce mois-ci</div>
+      <div class="big" id="acLeft"></div>
+      <div id="acInfo" style="margin-top:8px"></div>
+    </section>
+    <section><h2 id="acSalTitle"></h2><div id="acSalChart"></div><div id="acSalNote" class="mute" style="font-size:.85rem"></div></section>
+    <section><h2>Dépenses par catégorie · ce mois-ci</h2><div id="acPie1"></div></section>
+    <section><h2>Dépenses par catégorie · 12 derniers mois</h2><div id="acPie2"></div></section>
+    <section><h2>Dépenses des 6 derniers mois</h2><div id="acBars"></div></section>
+    <section>
+      <h2>Transactions du mois</h2>
+      <ul id="acList"></ul>
+      <p id="acEmpty" class="mute">Aucune transaction ce mois-ci sur ce compte.</p>
+    </section>
+  </div>
+
+  <div id="tabMut" hidden>
+    <section id="acMut">
+      <h2>🩺 Mutuelle · remboursements <span id="acMutYear" class="mute"></span></h2>
+      <div id="acMutList"></div>
+      <details style="margin-top:8px"><summary class="mute">Ajouter / modifier une règle de remboursement</summary>
+        <div class="row" style="margin-top:8px">
+          <select id="mWho" aria-label="Pour qui"><option>Julien</option><option>Marie</option><option>Kélia</option><option>Milio</option></select>
+          <input id="mLabel" placeholder="Soin (ex. Ostéopathe, Médecin, Pharmacie, Kiné)">
+          <input id="mRate" type="number" step="1" min="0" max="100" placeholder="Remboursement (%)">
+          <input id="mUnit" type="number" step="1" min="0" placeholder="Max par séance (€)">
+          <input id="mYear" type="number" step="1" min="0" placeholder="Plafond par an (€)">
+          <button id="mBtn">Ajouter</button>
+          <button class="ghost" id="mCancel" hidden>Annuler</button>
+        </div>
+        <div class="mute" style="font-size:.8rem;margin-top:6px">Renseignez au moins un des trois : un pourcentage, un maximum par séance ou un plafond annuel. Ex. Julien · Ostéopathe · 30 € par séance.</div>
+      </details>
+    </section>
+  </div>
+
+  <div id="tabCats" hidden>
+    <section>
+      <h2>Catégories de dépense</h2>
+      <p class="mute">Les catégories et sous-catégories proposées quand vous ajoutez une transaction. Une catégorie avec des sous-catégories demande d'en choisir une (ex. Fast Food : McDo, Pizza…). Supprimer une catégorie ne supprime pas les transactions déjà saisies.</p>
+      <div class="row"><input id="catNew" placeholder="Nouvelle catégorie (ex. Coiffeur)"><button id="catAdd">Ajouter</button></div>
+    </section>
+    <section><div id="catList"></div></section>
+  </div>
+
+  <div id="tabCatView" hidden>
+    <button class="ghost" id="catViewBack" style="margin-top:16px">← Retour</button>
+    <section>
+      <h2>Par catégorie · <span id="cvMonth"></span></h2>
+      <p class="mute" style="font-size:.85rem">Dépenses saisies et dépenses fixes du mois. L'écart avec le mois précédent est en rouge quand vous avez dépensé plus, en vert quand vous avez dépensé moins.</p>
+      <div id="cats" class="mute">Aucune dépense ce mois-ci.</div>
+    </section>
+  </div>
+
+  <div id="tabPlanned" hidden>
+    <div id="planMain">
+  <section>
+    <h2 id="ptitle">📅 Dépenses prévues</h2>
+    <p class="mute">Réservez un budget pour un mois à venir (ex. 500 € de cadeaux en décembre). Il est déduit de « il vous restera » ce mois-là. Cliquez sur une dépense prévue pour y ajouter vos achats, les modifier ou la supprimer.</p>
+    <div class="row">
+      <input id="plabel" placeholder="Libellé (ex. cadeaux de Noël)">
+      <input id="pamount" type="number" step="0.01" min="0" placeholder="Budget (€)">
+      <select id="pcat" aria-label="Catégorie prévue">
+        <option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Loisirs</option>
+        <option>Santé</option><option>Enfants</option><option>Autre</option>
+      </select>
+      <input id="pmonth" type="month" aria-label="Mois prévu">
+      <label class="mute" style="display:flex;gap:6px;align-items:center;flex:1 1 100%"><input id="pYear" type="checkbox" style="width:auto"> Revient chaque année (Noël, anniversaires…)</label>
+      <button id="btnPlan">Prévoir</button>
+      <button class="ghost" id="btnPlanCancel" hidden>Annuler</button>
+    </div>
+    <ul id="planList" style="margin-top:10px"></ul>
+  </section>
+    <section>
+      <h2>🎁 Liste de cadeaux</h2>
+      <p class="mute">Vos idées de cadeaux avec leur prix. Cette liste n'est pas prise en compte dans le budget. Le mois indiqué est une estimation : on cumule ce qu'il restera chaque mois sur les salaires et on finance les cadeaux du moins cher au plus cher.</p>
+      <div class="row">
+        <select id="gPerson" aria-label="Pour qui"><option>Julien</option><option>Marie</option><option>Kélia</option><option>Milio</option></select>
+        <input id="gLabel" placeholder="Cadeau (ex. casque audio)">
+        <input id="gPrice" type="number" step="0.01" min="0" placeholder="Prix (€)">
+        <button id="btnGift">Ajouter</button>
+        <button class="ghost" id="btnGiftCancel" hidden>Annuler</button>
+      </div>
+      <div id="giftTotal" class="mute" style="margin-top:10px"></div>
+      <div id="giftList"></div>
+    </section>
+    </div>
+    <div id="planDetail" hidden>
+      <button class="ghost" id="pBack" style="margin-top:16px">← Retour</button>
+      <section>
+        <h2 id="pdName"></h2>
+        <div class="mute">Il reste sur ce budget</div>
+        <div class="big" id="pdLeft"></div>
+        <div class="bar"><i id="pdFill"></i></div>
+        <div class="mute" id="pdSum"></div>
+        <div class="mute" id="pdInfo" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:14px">
+          <button id="pdEdit">Modifier</button>
+          <button class="ghost" id="pdDel">Supprimer</button>
+        </div>
+      </section>
+      <section>
+        <h2>Ajouter un achat</h2>
+        <p class="mute">L'achat est enregistré à sa date réelle (dans les dépenses du mois correspondant) et déduit du budget de cette dépense prévue.</p>
+        <div class="row">
+          <input id="pbLabel" placeholder="Achat (ex. jouet, parfum)">
+          <input id="pbAmount" type="number" step="0.01" min="0" placeholder="Montant (€)">
+          <select id="pbAccount" aria-label="Compte"><option>Julien</option><option>Marie</option><option selected>Commun</option></select>
+          <input id="pbDate" type="date" aria-label="Date de l'achat">
+          <button id="pbAdd">Ajouter</button>
+        </div>
+      </section>
+      <section>
+        <h2>Achats</h2>
+        <ul id="pbList"></ul>
+        <p id="pbEmpty" class="mute">Aucun achat pour l'instant.</p>
+      </section>
+    </div>
+  </div>
+
+  <div id="tabEstimated" hidden>
+    <section>
+      <div class="mute">Total estimé par mois</div>
+      <div class="big" id="estTotal">0 €</div>
+      <p class="mute">Budgets estimés par zone : <b>Commun</b> = budgets partagés (Jow, enfants, travaux, fast food…), équilibrés entre Julien et Marie ; <b>Marie</b> et <b>Julien</b> = budgets personnels (carburant, loisirs, cigarettes, jeux…), non pris en compte dans l'équilibre. Ils sont déduits de « il vous restera », et vos dépenses réelles de la même catégorie s'y imputent. Les moyennes se calculent sur les mois complets déjà passés.</p>
+    </section>
+    <section>
+      <h2>Estimer une catégorie</h2>
+      <div class="row">
+        <select id="estZone" aria-label="Type de budget"><option value="Commun">Budget partagés</option><option value="Julien">Budget Julien</option><option value="Marie">Budget Marie</option></select>
+        <select id="estCat" aria-label="Catégorie"><option>Jow</option><option>Enfants</option><option>Travaux</option><option>Fast Food</option><option>Boulangerie</option><option>Animaux</option><option>Imprévus</option><option>Santé</option><option>Carburant</option><option>Loisirs</option><option>Cigarette</option><option>Jeux</option><option>Autre</option></select>
+        <select id="estMode" aria-label="Mode de calcul"><option value="manual">Valeur saisie par moi</option><option value="auto">Moyenne depuis toujours</option></select>
+        <input id="estAmt" type="number" step="1" min="0" placeholder="Budget estimé / mois (€)">
+        <button id="btnEst">Enregistrer</button>
+      </div>
+    </section>
+    <div id="estZones"></div>
+    <p id="estEmpty" class="mute">Aucune estimation. Choisissez une zone et une catégorie ci-dessus. Les moyennes apparaîtront après un mois complet de dépenses.</p>
+  </div>
+
+  <div id="tabSplit" hidden>
+    <section>
+      <h2>Répartition au prorata des salaires</h2>
+      <p class="mute">Chacun verse sur le compte commun une part proportionnelle à son salaire du mois choisi (en haut de la page).</p>
+      <div class="row"><input id="s1n" placeholder="Prénom 1"><input id="s1a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
+      <div class="row" style="margin-top:8px"><input id="s2n" placeholder="Prénom 2"><input id="s2a" type="number" step="0.01" min="0" placeholder="Salaire net (€)"></div>
+      <div class="row" style="margin-top:12px"><button id="btnSplit">Enregistrer les salaires</button></div>
+      <p class="mute" id="sHint"></p>
+    </section>
+    <section>
+      <h2>À verser sur le compte commun</h2>
+      <div id="sNeed"></div>
+      <div class="bar"><i id="sBar"></i></div>
+      <div id="sRes"></div>
+    </section>
+    <section id="reconBox">
+      <h2>🏦 Rapprochement bancaire</h2>
+      <p class="mute" style="font-size:.85rem">Saisissez le solde réel de chaque compte à la fin du mois affiché. L'appli enregistre l'écart comme un ajustement : il devient le point de départ des mois suivants.</p>
+      <div id="reconRows"></div>
+      <details style="margin-top:8px"><summary class="mute">Ajustements enregistrés</summary><ul id="reconAdj"></ul></details>
+    </section>
+  </div>
+
+  <div id="tabDetail" hidden>
+    <section>
+      <button class="ghost" id="btnBack">Retour aux dépenses fixes</button>
+      <h2 id="dTitle" style="margin:16px 0 4px"></h2>
+      <div class="mute">Montant actuel par mois</div>
+      <div class="big" id="dAmount"></div>
+      <ul id="dInfo" style="margin:12px 0"></ul>
+      <div class="row"><button id="btnEdit">Modifier</button><button class="ghost" id="btnDel">Supprimer</button></div>
+    </section>
+    <section>
+      <h2>Évolution du prix par mois</h2>
+      <div id="chart"></div>
+      <p class="mute" id="chartNote" hidden>Un seul mois pour l'instant : la courbe se dessinera dès le mois prochain.</p>
+    </section>
+    <section id="dHistBox" hidden>
+      <h2>Changements de prix</h2>
+      <ul id="dHist"></ul>
+    </section>
+  </div>
+  <div id="tabIncDetail" hidden>
+    <section>
+      <button class="ghost" id="btnIncBack">Retour aux revenus fixes</button>
+      <h2 id="idTitle" style="margin:16px 0 4px"></h2>
+      <div class="mute">Montant actuel par mois</div>
+      <div class="big" id="idAmount" style="color:var(--ok)"></div>
+      <ul id="idInfo" style="margin:12px 0"></ul>
+      <div class="row"><button id="btnIncEdit">Modifier</button><button class="ghost" id="btnIncDel">Supprimer</button></div>
+    </section>
+    <section>
+      <h2>Évolution du montant par mois</h2>
+      <div id="incChart"></div>
+      <p class="mute" id="incChartNote" hidden>Un seul mois pour l'instant : la courbe se dessinera dès le mois prochain.</p>
+    </section>
+    <section id="idHistBox" hidden>
+      <h2>Changements de montant</h2>
+      <ul id="idHist"></ul>
+    </section>
+  </div>
+  <footer style="margin-top:28px;padding-top:14px;border-top:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <label class="mute" style="display:flex;gap:8px;align-items:center">Mois affiché <input id="month" type="month" aria-label="Mois"></label>
+    <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" id="btnMe">Profil</button><button class="ghost" id="btnOut">Déconnexion</button></span>
+  </footer>
+</div>
+
+<dialog id="valDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,360px)">
+  <h2 id="valTitle" style="margin-top:0"></h2>
+  <div class="mute" id="valSub"></div>
+  <label style="display:flex;gap:8px;align-items:center;margin:14px 0 10px"><input id="valAll" type="checkbox" checked style="width:auto"> La totalité (<span id="valFull"></span>)</label>
+  <input id="valAmt" type="number" step="0.01" min="0" style="width:100%" placeholder="Montant exact (€)" disabled>
+  <label class="mute" style="display:block;margin-top:12px">Compte concerné<select id="valAcc" style="width:100%;margin-top:2px"><option>Julien</option><option>Marie</option><option>Commun</option></select></label>
+  <div id="valRef" class="mute" hidden style="margin-top:12px;font-size:.85rem"></div>
+  <div class="row" style="margin-top:14px"><button id="valOk">Valider</button><button class="ghost" id="valCancel">Annuler</button></div>
+</dialog>
+
+<dialog id="txDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(94vw,440px);max-height:90vh;overflow:auto">
+  <h2 id="txTitle" style="margin-top:0">Ajouter une transaction</h2>
+  <select id="ttype" hidden><option value="">—</option><option value="exp">Dépense</option><option value="cred">Crédit</option></select>
+  <div class="row"><button id="tDep" class="ghost">Dépense</button><button id="tCred" class="ghost">Crédit</button></div>
+  <div id="txStep2" hidden style="margin-top:12px">
+    <div class="mute" style="font-size:.85rem">Catégorie</div>
+    <select id="category" style="width:100%"><option value="" selected disabled>Choisir une catégorie…</option>
+        <option>Courses</option><option>Jow</option><option>Logement</option><option>Énergie</option>
+        <option>Santé</option><option>Lentilles</option><option>Loisirs</option>
+        <option>Enfants</option><option>Carburant</option><option>Imprévus</option><option>Fast Food</option><option>Boulangerie</option><option>Cigarette</option><option>Jeux</option><option>Animaux</option><option>Cadeaux</option><option>Vacances</option><option>Travaux</option><option>Autre</option>
+      </select>
+    <div id="txCare" hidden style="margin-top:10px">
+      <div id="careTypeBox">
+        <div class="mute" style="font-size:.85rem">Type de soin</div>
+        <select id="careType" style="width:100%"></select>
+      </div>
+      <div class="mute" style="font-size:.85rem;margin-top:10px">Pour qui</div>
+      <div class="row" id="whoBtns"></div>
+    </div>
+    <div id="txSub" hidden style="margin-top:10px">
+      <div class="mute" style="font-size:.85rem" id="subLab">Sous-catégorie</div>
+      <select id="subType" style="width:100%"></select>
+    </div>
+  </div>
+  <div id="txStep3" hidden style="margin-top:12px">
+    <div class="mute" style="font-size:.85rem">Compte</div>
+    <select id="account" hidden><option value="">—</option><option>Julien</option><option>Marie</option><option>Commun</option></select>
+    <div class="row" id="accBtns"></div>
+    <div class="mute" id="accNote" style="font-size:.8rem;margin-top:4px"></div>
+  </div>
+  <div id="txStep4" hidden>
+    <input id="label" placeholder="Libellé (ex. courses, médecin)" style="width:100%;margin-top:12px">
+    <input id="amount" type="number" step="0.01" min="0" placeholder="Montant (€)" style="width:100%;margin-top:8px">
+    <label class="mute" style="display:block;margin-top:8px;font-size:.85rem"><span id="dateLab">Date</span><input id="date" type="date" style="width:100%"></label>
+    <div id="refBox" hidden style="margin-top:8px">
+      <select id="refMut" hidden style="width:100%;margin-bottom:8px"></select>
+      <input id="refAmt" type="number" step="0.01" min="0" placeholder="Remboursement attendu (€)" style="width:100%">
+      <label class="mute" style="display:block;margin-top:8px;font-size:.85rem">Vérifier le remboursement le<input id="refDate" type="date" style="width:100%"></label>
+    </div>
+    <label id="tpendBox" class="mute" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="tpend" type="checkbox" style="width:auto"> À venir (à valider plus tard : médecin, chèque…)</label>
+    <div id="tHint" class="mute" style="margin-top:8px;font-size:.8rem"></div>
+  </div>
+  <div class="row" style="margin-top:14px">
+    <button id="btnAdd" hidden>Ajouter</button>
+    <button class="ghost" id="btnAddCancel">Annuler</button>
+    <button class="ghost" id="btnAddDel" hidden style="color:var(--bad)">Supprimer</button>
+  </div>
+</dialog>
+
+<dialog id="cfmDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 id="cfmTitle" style="margin-top:0"></h2>
+  <div id="cfmBody"></div>
+  <div class="row" style="margin-top:14px"><button id="cfmOk">Confirmer</button><button class="ghost" id="cfmNo">Retour</button></div>
+</dialog>
+<dialog id="infoDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 id="infoTitle" style="margin-top:0"></h2>
+  <div id="infoBody"></div>
+  <div class="row" style="margin-top:14px"><button id="infoOk">OK</button></div>
+</dialog>
+
+<dialog id="meDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 style="margin-top:0">Qui êtes-vous ?</h2>
+  <div class="mute">Pour vous proposer, chaque début de mois, la saisie de votre salaire et votre versement sur le compte commun.</div>
+  <div class="row" style="margin-top:14px"><button id="meJ">Julien</button><button id="meM">Marie</button></div>
+</dialog>
+<dialog id="salDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px)">
+  <h2 id="salDlgTitle" style="margin-top:0"></h2>
+  <div class="mute">Saisissez votre salaire net du mois.</div>
+  <input id="salDlgAmt" type="number" step="0.01" min="0" placeholder="Salaire net (€)" style="width:100%;margin-top:12px">
+  <div class="row" style="margin-top:14px"><button id="salDlgOk">Valider</button><button class="ghost" id="salDlgLater">Plus tard</button></div>
+</dialog>
+<dialog id="cbDlg" style="border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--card);color:var(--ink);width:min(94vw,420px);max-height:90vh;overflow:auto">
+  <h2 id="cbDlgTitle" style="margin-top:0"></h2>
+  <div id="cbDlgDet"></div>
+  <div class="mute" style="margin-top:12px;font-size:.85rem">Montant versé (€)</div>
+  <input id="cbDlgAmt" type="number" step="0.01" min="0" style="width:100%">
+  <div class="row" style="margin-top:14px"><button id="cbDlgOk">✓ Valider</button><button class="ghost" id="cbDlgLater">Plus tard</button></div>
+</dialog>
+
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, setDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// 👉 Remplacez par la config de VOTRE projet (Console Firebase > Paramètres du projet > Vos applications > Web)
+const firebaseConfig = {
+  apiKey: "AIzaSyAPG5tGC4jbJVSwibqeqeJDDSQh8jiXip0",
+  authDomain: "gestion-budget-7e4dc.firebaseapp.com",
+  projectId: "gestion-budget-7e4dc",
+  storageBucket: "gestion-budget-7e4dc.firebasestorage.app",
+  messagingSenderId: "718863589226",
+  appId: "1:718863589226:web:df33c18ac3635c656a0f13"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = id => document.getElementById(id);
+const eur = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+const today = new Date().toISOString().slice(0, 10);
+
+let unsubs = [], budget = 0, expenses = [], fixed = [], salaries = {}, splitDirty = false, salLoaded = false, foodB = {}, planned = [], gifts = [], gEditId = null, waits = [], wEditId = null, curLeft = { m: "", v: null }, estimates = {}, histExp = [], planBuys = [], planDetailId = null, planEditId = null;
+$("month").value = today.slice(0, 7);
+$("fstart").value = today.slice(0, 7);
+$("date").value = today;
+
+onAuthStateChanged(auth, user => {
+  $("login").hidden = !!user;
+  $("app").hidden = !user;
+  unsubs.forEach(u => u()); unsubs = [];
+  $("accessErr").hidden = true; popupsShown = false; me = "";
+  if (user) $("btnOut").textContent = "Déconnexion (" + (user.email || "").split("@")[0] + ")";
+  if (user) listen();
+});
+
+$("btnLogin").onclick = async () => {
+  $("err").textContent = "";
+  try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pwd").value); }
+  catch (e) {
+    const msgs = {
+      "auth/invalid-credential": "Email ou mot de passe incorrect, ou compte non créé dans Firebase.",
+      "auth/invalid-api-key": "Clé API invalide : collez votre firebaseConfig dans le fichier.",
+      "auth/api-key-not-valid.-please-pass-a-valid-api-key.": "Clé API invalide : collez votre firebaseConfig dans le fichier.",
+      "auth/unauthorized-domain": "Domaine non autorisé : ajoutez votre domaine github.io dans Authentication > Paramètres > Domaines autorisés.",
+      "auth/operation-not-allowed": "Connexion email/mot de passe non activée dans Firebase Authentication.",
+      "auth/too-many-requests": "Trop d'essais : patientez quelques minutes.",
+      "auth/network-request-failed": "Problème de réseau."
+    };
+    $("err").textContent = (msgs[e.code] || "Échec de connexion.") + " (" + e.code + ")";
+    console.error(e);
+  }
+};
+$("pwd").onkeydown = e => { if (e.key === "Enter") $("btnLogin").click(); };
+$("btnOut").onclick = () => signOut(auth);
+$("month").onchange = () => { unsubs.forEach(u => u()); unsubs = []; listen(); };
+
+const snap = (ref, cb, ecb) => onSnapshot(ref, cb, e => { accessError(e); if (ecb) ecb(e); });
+function accessError(e) {
+  console.error(e);
+  if (e && e.code === "permission-denied") {
+    const who = auth.currentUser ? auth.currentUser.email : "?";
+    $("accessMsg").textContent = "⚠️ Accès refusé à certaines données pour " + who + ". Cet email doit figurer, écrit exactement pareil, dans les règles Firestore (console Firebase > Firestore > Règles).";
+    $("accessErr").hidden = false;
+  }
+}
+
+const addedAt = x => (x.created && x.created.toMillis) ? x.created.toMillis() : Number.MAX_SAFE_INTEGER;
+const byRecent = (a, b) => (b.date || "").localeCompare(a.date || "") || (addedAt(b) === addedAt(a) ? 0 : addedAt(b) > addedAt(a) ? 1 : -1);
+
+function listen() {
+  const m = $("month").value;
+  if (!m) return;
+  updateMonthTitle();
+  splitDirty = false; fillSplit(); topDirtyJ = false; topDirtyM = false; contribDraft = {}; fillTopSal();
+  unsubs.push(snap(collection(db, "pending"), s => {
+    waits = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    waitsLoaded = true; maybeMigrateSante(); render(); renderSplit(); renderWait(); checkPopups();
+  }));
+  unsubs.push(snap(collection(db, "settings"), s => {
+    flags = {}; profiles = {}; s.docs.forEach(d => { if (d.id === "flags") flags = d.data(); if (d.id === "profiles") profiles = d.data(); });
+    if (auth.currentUser) { me = profiles[emailKey(auth.currentUser.email)] || me; updateMeBtn(); } checkPopups();
+    maybeSeedJow(); maybeSeedCats(); maybeMigrateSante(); renderEst();
+  }));
+  unsubs.push(snap(collection(db, "settlements"), s => {
+    settles = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderBalance($("month").value);
+  }));
+  unsubs.push(snap(collection(db, "mutuelle"), s => {
+    mutItems = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMut();
+  }));
+  unsubs.push(snap(collection(db, "categories"), s => {
+    cats = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
+    catsLoaded = true; rebuildCatSelects(); renderCats(); maybeSeedCats(); maybeMigrateSante();
+  }));
+  unsubs.push(snap(collection(db, "transfers"), s => {
+    transfers = s.docs.map(d => ({ id: d.id, ...d.data() })); transfersLoaded = true; checkPopups();
+    renderContrib($("month").value); if (acctName) renderAcctPage();
+  }));
+  unsubs.push(snap(collection(db, "adjustments"), s => {
+    adjustments = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderRecon(); if (acctName) renderAcctPage();
+  }));
+  unsubs.push(snap(collection(db, "gifts"), s => {
+    gifts = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderGifts();
+  }));
+  unsubs.push(snap(collection(db, "estimates"), s => {
+    estimates = {}; s.docs.forEach(d => estimates[d.id] = d.data());
+    estLoaded = true; maybeSeedJow();
+    render(); renderSplit();
+  }));
+  unsubs.push(snap(collection(db, "expenses"), s => {
+    histExp = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    avgC = estAvg(); histLoaded = true; maybeMigrateSante(); render();
+  }, () => {}));
+  unsubs.push(snap(query(collection(db, "expenses"), where("planId", ">", "")), s => {
+    planBuys = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render(); renderSplit();
+  }, () => {}));
+  unsubs.push(snap(collection(db, "planned"), s => {
+    planned = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render(); renderSplit();
+  }));
+  unsubs.push(snap(collection(db, "foodBudgets"), s => {
+    foodB = {}; s.docs.forEach(d => foodB[d.id] = d.data().amount);
+    renderSplit();
+  }));
+  unsubs.push(snap(collection(db, "salaries"), s => {
+    salLoaded = true; salaries = {}; s.docs.forEach(d => salaries[d.id] = d.data());
+    fillSplit(); fillTopSal(); renderSplit(); render(); checkPopups();
+  }));
+  unsubs.push(snap(collection(db, "recurringIncome"), s => {
+    incomes = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render(); renderSplit();
+  }));
+  unsubs.push(snap(collection(db, "recurring"), s => {
+    fixed = s.docs.map(d => { const o = { id: d.id, ...d.data() }; o.category = ({ Logement: "Maison / Charges", Énergie: "Maison / Charges", Assurances: "Assurances / Santé", Transport: "Autre" })[o.category] || o.category; return o; }); fixedLoaded = true; checkPopups();
+    render(); renderSplit();
+  }));
+  unsubs.push(snap(query(collection(db, "expenses"), where("month", "==", m)), s => {
+    expenses = s.docs.map(d => ({ id: d.id, ...d.data() })).sort(byRecent);
+    render();
+  }, () => { $("empty").textContent = "Accès refusé : ce compte n'est pas autorisé."; }));
+}
+
+
+function render() {
+  updateMonthTitle(); renderPlan(); renderEst(); renderFuture();
+  const m = $("month").value;
+  const act = fixed.map(f => ({ ...f, amount: priceAt(f, m) })).filter(f => f.amount !== null);
+  const fixedTotal = act.reduce((t, f) => t + f.amount, 0);
+  const spent = expenses.reduce((t, e) => t + e.amount, 0) + fixedTotal;
+  const si = salInfo(m), av = si && (si.estJ || si.estM) ? true : null;
+  const incM = incFixed(m);
+  const sal = (si ? si.Julien + si.Marie : 0) + incM;
+  const food = expenses.filter(e => e.category === "Courses").reduce((t, e) => t + e.amount, 0);
+  const pl = planFor(m), es = estFor(), pd = pendSum(m, "all");
+  const other = spent - fixedTotal - food - pl.actual - es.actual;
+  const committed = spent + (pl.total - pl.actual) + (es.total - es.actual) + pd.pay - pd.inc;
+  const left = sal - committed, pct = sal > 0 ? Math.min(100, committed / sal * 100) : 0;
+  const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+  $("left").textContent = sal > 0 ? eur0(left) : "—";
+  $("left").style.color = sal > 0 ? col : "var(--mute)";
+  $("fill").style.width = pct + "%"; $("fill").style.background = col;
+  $("sum").innerHTML = "";
+  if (!(sal > 0)) $("sum").textContent = "Saisissez les salaires du mois (onglet Répartition) pour voir ce qu'il vous reste.";
+  else [[av ? "Total des 2 salaires (moyenne estimée)" : "Total des 2 salaires", sal - incM], ["− Dépenses mensuelles fixes", fixedTotal], ["+ Revenus mensuels fixes", incM], ["− Courses", food], ["− Dépenses prévues", pl.total], ["− Dépenses estimées", es.total], ["− Paiements à venir", pd.pay], ["+ Crédits et revenus ponctuels", pd.inc], ["− Autres dépenses", other]].forEach(([t, v], i) => {
+    if (![0, 1, 2].includes(i) && !(v > 0)) return;
+    const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
+    d.children[0].textContent = t; d.children[1].textContent = eur0(v);
+    d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)";
+    if (i) d.children[1].style.fontWeight = 400;
+    $("sum").append(d);
+    if (i === 5) estEntries().filter(en => en.zone === "Commun").sort((a, b) => estAmt(b) - estAmt(a)).forEach(en => $("sum").append(miniGauge(en.category + (en.zone === "Commun" ? "" : " · " + en.zone), estActual(en), estAmt(en))));
+  });
+
+  curLeft = { m, v: sal > 0 ? left : null }; renderGifts(); renderAcct(m); renderYear(m); renderBalance(m); renderMut(); renderContrib(m); fillTopSal(); renderRecon(); if (acctName) renderAcctPage();
+  const byCat = {};
+  [...expenses, ...act].forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
+  const pm = nmo(m, -1), prevCat = catTotals(pm), prevTot = Object.values(prevCat).reduce((t, v) => t + v, 0), showD = histLoaded && prevTot > 0;
+  const names = [...new Set([...Object.keys(byCat), ...(showD ? Object.keys(prevCat) : [])])];
+  const catRows = names.map(c => [c, byCat[c] || 0, prevCat[c] || 0]).sort((a, b) => b[1] - a[1] || b[2] - a[2]);
+  $("cats").innerHTML = catRows.map(([c, v, p]) => {
+      let d = "";
+      if (showD) { const diff = v - p; d = Math.abs(diff) < 0.5 ? '<small style="color:var(--mute);margin-right:8px">=</small>' : `<small style="color:var(${diff > 0 ? "--bad" : "--ok"});font-weight:700;margin-right:8px">${diff > 0 ? "+" : "−"}${eur0(Math.abs(diff))}</small>`; }
+      return `<div class="cat"><span>${esc(c)}</span><span>${d}<b>${eur0(v)}</b></span></div>`;
+    }).join("") || "Aucune dépense ce mois-ci.";
+  $("cvMonth").textContent = monthLabel(m);
+  { const tot = catRows.reduce((t, r) => t + r[1], 0), top = catRows.find(r => r[1] > 0), dT = tot - prevTot;
+    $("catsSum").innerHTML = top ? `Total ${eur0(tot)}${showD ? ` <span style="color:var(${dT > 0 ? "--bad" : "--ok"});font-weight:700">${dT > 0 ? "+" : "−"}${eur0(Math.abs(dT))}</span>` : ""} · plus gros poste : ${esc(top[0])} ${eur0(top[1])}` : "Aucune dépense ce mois-ci"; }
+
+  $("empty").textContent = "Aucune transaction ce mois-ci. Ajoutez-en une ci-dessus.";
+  const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m);
+  const dim = new Date(+m.slice(0, 4), +m.slice(5), 0).getDate();
+  const autoDate = f => m + "-" + String(Math.min(Math.max(1, f.day || 1), dim)).padStart(2, "0");
+  const manual = [...expenses.map(e => ({ k: "e", e, date: e.date || "" })), ...credits.map(w => ({ k: "c", w, date: w.doneDate }))];
+  const auto = [...fixed.map(f => ({ k: "fa", f, p: priceAt(f, m) || 0, date: autoDate(f) })), ...incomes.map(f => ({ k: "ia", f, p: priceAt(f, m) || 0, date: autoDate(f) }))].filter(r => r.p > 0 && r.date <= today);
+  const rowsF = (txFilter === "manual" ? manual : txFilter === "auto" ? auto : [...manual, ...auto]).sort((a, b) => {
+    const fa = a.date > today ? 1 : 0, fb = b.date > today ? 1 : 0;
+    return fa !== fb ? fa - fb : (fa ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+  });
+  const fbox = $("txFilter"); fbox.innerHTML = "";
+  [["all", `Tout (${manual.length + auto.length})`], ["manual", `✍ Manuelles (${manual.length})`], ["auto", `⟳ Automatiques (${auto.length})`]].forEach(([v, t]) => {
+    const b = document.createElement("button"); b.textContent = t; b.className = txFilter === v ? "" : "ghost"; b.style.cssText = "padding:4px 10px;font-size:.8rem";
+    b.onclick = () => { txFilter = v; txAll = false; render(); }; fbox.append(b);
+  });
+  $("empty").hidden = rowsF.length > 0;
+  $("list").innerHTML = "";
+  const fr = d => new Date(d).toLocaleDateString("fr-FR");
+  (txAll ? rowsF : rowsF.slice(0, 5)).forEach(({ k, e, w, f, p, date }) => {
+    const isAuto = k === "fa" || k === "ia", isDebit = k === "e" || k === "fa";
+    const x = isAuto ? f : (k === "e" ? e : w), li = document.createElement("li");
+    if (x.account) li.className = "acc-" + x.account;
+    const l = document.createElement("div");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    let title, meta, subline = "";
+    if (k === "e") {
+      const pp = e.planId && (planned.find(q => q.id === e.planId) || { label: e.planLabel });
+      title = e.label + (pp && pp.label ? ` (pour dépense prévue « ${pp.label} »)` : "");
+const sub = e.sub || e.shop || "";
+      if (sub && e.label === sub) { title = e.category; subline = sub; }
+      else if (sub === "Autre") { title = e.category; subline = e.label && e.label !== e.category ? e.label : "Autre"; }
+      else if (e.care && e.label === `${e.care} (${e.forWho})`) { title = e.category; subline = e.care + (e.forWho ? " → " + e.forWho : ""); }
+      else if (e.category === "Lentilles" && e.forWho && e.label === `Lentilles (${e.forWho})`) { title = e.category; subline = "pour " + e.forWho; }
+      meta = subline
+        ? `${fr(e.date)}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`
+        : `${fr(e.date)} · ${e.care && e.care !== e.category ? e.category + " · " + e.care + (e.forWho ? " → " + e.forWho : "") : e.category + (e.forWho ? " → " + e.forWho : "")}${e.account ? " · " + e.account : ""} · ${(e.by || "").split("@")[0]}`;
+    } else if (k === "c") {
+      title = w.label;
+      meta = `${fr(w.doneDate)} · Revenu reçu${w.account ? " · " + w.account : ""} · ${(w.by || "").split("@")[0]}`;
+    } else {
+      title = f.label;
+      meta = `${fr(date)}${date > today ? " (à venir)" : ""} · ${f.category}${f.account ? " · " + f.account : ""} · ${k === "fa" ? "prélèvement" : "versement"} automatique`;
+      li.style.borderLeftStyle = "dashed"; if (date > today) li.style.opacity = ".6";
+    }
+    const pill = document.createElement("span"); pill.textContent = isAuto ? "⟳ Auto" : "✍ Manuel";
+    pill.style.cssText = "font-size:.7rem;border-radius:999px;padding:1px 7px;margin-right:6px;white-space:nowrap;color:var(--mute);" + (isAuto ? "border:1px dashed var(--mute)" : "border:1px solid var(--line)");
+    l.children[0].append(pill, document.createTextNode(title)); l.children[1].textContent = meta;
+    if (subline) { const sd = document.createElement("div"); sd.textContent = subline; sd.style.cssText = "font-size:.9rem"; l.insertBefore(sd, l.children[1]); }
+    if (isAuto) l.children[1].style.fontStyle = "italic";
+    const r = document.createElement("div");
+    const sp = document.createElement("span"); sp.className = "amt";
+    sp.textContent = (isDebit ? "− " : "+ ") + eur(isAuto ? p : (x.amount || 0));
+    sp.style.cssText = "font-weight:700;color:" + (isDebit ? "var(--bad)" : "var(--ok)");
+    r.append(sp);
+    const b = document.createElement("button"); b.className = "ghost";
+    if (isAuto) {
+      b.textContent = "Gérer"; b.setAttribute("aria-label", "Gérer " + f.label + " dans " + (k === "fa" ? "les dépenses fixes" : "les revenus fixes"));
+      b.onclick = () => { document.querySelectorAll("nav button").forEach(n => n.classList.remove("on")); k === "fa" ? openDetail(f.id) : openIncDetail(f.id); };
+    } else {
+      b.textContent = "✎ Modifier"; b.setAttribute("aria-label", "Modifier " + x.label);
+      b.onclick = () => k === "e" ? startExpenseEdit(e) : startWaitEdit(w);
+    }
+    r.append(b); li.append(l, r); $("list").append(li);
+  });
+  if (rowsF.length > 5) {
+    const li = document.createElement("li"), t = document.createElement("button");
+    t.className = "ghost"; t.style.width = "100%"; t.textContent = txAll ? "Réduire" : `Voir les ${rowsF.length - 5} autres`;
+    t.onclick = () => { txAll = !txAll; render(); };
+    li.append(t); $("list").append(li);
+  }
+  renderFixed(); renderInc(); renderFixBars(); renderWait();
+}
+
+function prices(f) { return (f.prices && f.prices.length ? f.prices : [{ from: f.start || "0000-00", amount: f.amount }]).slice().sort((a, b) => a.from.localeCompare(b.from)); }
+function priceAt(f, m) { let p = null; prices(f).forEach(x => { if (x.from <= m) p = x.amount; }); return p; }
+function curPrice(f) { const v = priceAt(f, today.slice(0, 7)); return v !== null ? v : prices(f)[0].amount; }
+function addM(ym, n) { const [y, m] = ym.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+function diffM(a, b) { const [y1, m1] = a.split("-").map(Number), [y2, m2] = b.split("-").map(Number); return (y2 - y1) * 12 + m2 - m1; }
+function fmtM(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); }
+function fmtS(ym) { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "short", year: "2-digit" }); }
+function dur(n) { if (n < 12) return n + " mois"; const y = Math.floor(n / 12), r = n % 12; return y + (y > 1 ? " ans" : " an") + (r ? " et " + r + " mois" : ""); }
+
+let editId = null, curId = null;
+let incomes = [], incEditId = null, incCurId = null, txAll = false, txFilter = "all", exEditId = null, editDone = false;
+let acctName = null;
+function show(v) { ["tabMonth", "tabFixed", "tabPlanned", "tabEstimated", "tabSplit", "tabDetail", "tabInc", "tabIncDetail", "tabAcct", "tabMut", "tabCats", "tabCatView"].forEach(x => $(x).hidden = x !== v); window.scrollTo(0, 0); }
+
+const eur0 = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+function renderFixed() {
+  const items = fixed.map(f => ({ f, p: curPrice(f) }));
+  const total = items.reduce((t, x) => t + (priceAt(x.f, today.slice(0, 7)) || 0), 0);
+  $("fixedTotal").textContent = eur0(total) + " / mois";
+  $("fixedYear").textContent = eur0(total * 12) + " / an";
+  $("fixedEmpty").hidden = fixed.length > 0;
+  $("fixedList").innerHTML = "";
+  const groups = {};
+  items.forEach(x => (groups[x.f.category || "Autre"] ||= []).push(x));
+  Object.entries(groups)
+    .map(([c, l]) => ({ c, l: l.sort((a, b) => b.p - a.p), t: l.reduce((s, x) => s + x.p, 0) }))
+    .sort((a, b) => b.t - a.t)
+    .forEach(g => {
+      const h = document.createElement("li");
+      h.className = "cathead";
+      h.innerHTML = "<span></span><small></small>";
+      h.children[0].textContent = g.c;
+      h.children[1].textContent = `${eur(g.t)}/mois · ${eur(g.t * 12)}/an`;
+      $("fixedList").append(h);
+      g.l.forEach(({ f, p }) => {
+        const li = document.createElement("li"), b = document.createElement("button");
+        b.className = "rowbtn";
+        b.innerHTML = "<span class='nm'></span><span class='amt'><b></b><small></small></span>";
+        b.children[0].textContent = f.label;
+        b.querySelector("b").textContent = eur(p) + " / mois";
+        b.querySelector("small").textContent = eur(p * 12) + " / an";
+        b.onclick = () => openDetail(f.id);
+        li.append(b); $("fixedList").append(li);
+      });
+    });
+  if (curId) renderDetail();
+}
+
+function openDetail(id) { curId = id; show("tabDetail"); renderDetail(); }
+
+function renderDetail() {
+  const f = fixed.find(x => x.id === curId);
+  if (!f) { curId = null; if (!$("tabDetail").hidden) show("tabFixed"); return; }
+  const ps = prices(f), now = today.slice(0, 7), start = ps[0].from, n = diffM(start, now);
+  $("dTitle").textContent = f.label;
+  $("dAmount").textContent = eur(curPrice(f));
+  const info = [["Catégorie", f.category], ["Compte", f.account ? "Prélevé sur " + f.account : "Non précisé"], ["Prélèvement", `le ${f.day || "?"} de chaque mois`],
+    ["Depuis", n < 0 ? `${fmtM(start)} (à venir)` : n === 0 ? `${fmtM(start)} (ce mois-ci)` : `${fmtM(start)} (${dur(n)})`]];
+  $("dInfo").innerHTML = "";
+  info.forEach(([k, v]) => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span class='mute'></span><span></span>";
+    li.children[0].textContent = k; li.children[1].textContent = v; $("dInfo").append(li);
+  });
+  const from = n > 23 ? addM(now, -23) : start, last = n < 0 ? start : now, pts = [];
+  for (let m = from; m <= last; m = addM(m, 1)) pts.push({ m, v: priceAt(f, m) ?? ps[0].amount });
+  $("chart").innerHTML = chartSvg(pts);
+  $("chartNote").hidden = pts.length > 1;
+  $("dHistBox").hidden = ps.length < 2;
+  $("dHist").innerHTML = "";
+  ps.slice().reverse().forEach(x => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span></span><span class='amt'></span>";
+    li.children[0].textContent = "Depuis " + fmtM(x.from); li.children[1].textContent = eur(x.amount);
+    $("dHist").append(li);
+  });
+}
+
+function chartSvg(pts) {
+  const W = 600, H = 240, L = 62, R = 16, T = 16, B = 34;
+  const vs = pts.map(p => p.v), mn = Math.min(...vs), mx = Math.max(...vs);
+  const pad = Math.max((mx - mn) * 0.25, mx * 0.08, 1);
+  const lo = Math.max(0, mn - pad), hi = mx + pad;
+  const X = i => L + (pts.length > 1 ? i * (W - L - R) / (pts.length - 1) : (W - L - R) / 2);
+  const Y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const dg = hi - lo < 10 ? 1 : 0, step = Math.ceil(pts.length / 6);
+  let g = "", d = "", dots = "", xs = "";
+  for (let k = 0; k <= 3; k++) {
+    const v = lo + (hi - lo) * k / 3;
+    g += `<line class="gl" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="tx" x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${v.toLocaleString("fr-FR", { maximumFractionDigits: dg })} €</text>`;
+  }
+  pts.forEach((p, i) => {
+    d += i ? `H${X(i)}V${Y(p.v)}` : `M${X(0)} ${Y(p.v)}`;
+    dots += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="3.5"><title>${fmtM(p.m)} : ${eur(p.v)}</title></circle>`;
+    if (i % step === 0) xs += `<text class="tx" x="${X(i)}" y="${H - 10}" text-anchor="middle">${fmtS(p.m)}</text>`;
+  });
+  return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du prix par mois">${g}<path d="${d}"/>${dots}${xs}</svg>`;
+}
+
+function resetFixedForm() {
+  $("faccount").value = "Commun";
+  editId = null;
+  ["flabel", "famount", "fday"].forEach(i => $(i).value = "");
+  $("fstart").value = today.slice(0, 7); $("fstart").hidden = false;
+  $("fchange").hidden = true; $("fhint").hidden = true;
+  $("btnFixed").textContent = "Ajouter"; $("ftitle").textContent = "Ajouter une dépense fixe"; $("btnCancel").hidden = true;
+}
+
+function startEdit(f) {
+  editId = f.id;
+  $("flabel").value = f.label; $("famount").value = curPrice(f);
+  $("fcategory").value = f.category; $("faccount").value = f.account || "Commun"; $("fday").value = f.day || "";
+  $("fstart").hidden = true; $("fchange").hidden = false; $("fchange").value = today.slice(0, 7); $("fhint").hidden = false;
+  $("btnFixed").textContent = "Enregistrer"; $("ftitle").textContent = "Modifier la dépense fixe"; $("btnCancel").hidden = false;
+  show("tabFixed"); $("flabel").focus();
+}
+
+$("btnCancel").onclick = () => { const b = editId; resetFixedForm(); if (b) openDetail(b); };
+$("btnEdit").onclick = () => { const f = fixed.find(x => x.id === curId); if (f) startEdit(f); };
+$("btnBack").onclick = () => { curId = null; show("tabFixed"); };
+$("btnDel").onclick = async () => {
+  const f = fixed.find(x => x.id === curId);
+  if (f && confirm(`Supprimer « ${f.label} » ? Elle ne sera plus déduite des mois, passés comme futurs.`)) {
+    await deleteDoc(doc(db, "recurring", f.id)); curId = null; show("tabFixed");
+  }
+};
+
+$("btnFixed").onclick = async () => {
+  const label = $("flabel").value.trim(), amount = parseFloat($("famount").value), cat = $("fcategory").value, acc = $("faccount").value;
+  const day = Math.min(31, Math.max(1, parseInt($("fday").value) || 1));
+  if (!label || !(amount > 0)) return;
+  if (editId) {
+    const f = fixed.find(x => x.id === editId);
+    let ps = prices(f);
+    if (amount !== curPrice(f)) {
+      const from = $("fchange").value || today.slice(0, 7);
+      ps = ps.filter(x => x.from !== from).concat({ from, amount }).sort((a, b) => a.from.localeCompare(b.from));
+    }
+    await updateDoc(doc(db, "recurring", editId), { label, category: cat, account: acc, day, prices: ps, start: ps[0].from, amount: ps[ps.length - 1].amount });
+    const id = editId; resetFixedForm(); openDetail(id);
+  } else {
+    const start = $("fstart").value;
+    if (!start) return;
+    await addDoc(collection(db, "recurring"), {
+      label, amount, day, start, category: cat, account: acc, prices: [{ from: start, amount }],
+      by: auth.currentUser.email, created: serverTimestamp()
+    });
+    resetFixedForm();
+  }
+};
+
+function renderInc() {
+  const items = incomes.map(f => ({ f, p: curPrice(f) }));
+  const total = items.reduce((t, x) => t + (priceAt(x.f, today.slice(0, 7)) || 0), 0);
+  $("incTotal").textContent = eur0(total) + " / mois";
+  $("incYear").textContent = eur0(total * 12) + " / an";
+  $("incEmpty").hidden = incomes.length > 0;
+  $("incList").innerHTML = "";
+  const groups = {};
+  items.forEach(x => (groups[x.f.category || "Autre"] ||= []).push(x));
+  Object.entries(groups)
+    .map(([c, l]) => ({ c, l: l.sort((a, b) => b.p - a.p), t: l.reduce((s, x) => s + x.p, 0) }))
+    .sort((a, b) => b.t - a.t)
+    .forEach(g => {
+      const h = document.createElement("li");
+      h.className = "cathead";
+      h.innerHTML = "<span></span><small></small>";
+      h.children[0].textContent = g.c;
+      h.children[1].textContent = `${eur(g.t)}/mois · ${eur(g.t * 12)}/an`;
+      $("incList").append(h);
+      g.l.forEach(({ f, p }) => {
+        const li = document.createElement("li"), b = document.createElement("button");
+        b.className = "rowbtn";
+        b.innerHTML = "<span class='nm'></span><span class='amt'><b></b><small></small></span>";
+        b.children[0].textContent = f.label;
+        b.querySelector("b").textContent = eur(p) + " / mois"; b.querySelector("b").style.color = "var(--ok)";
+        b.querySelector("small").textContent = eur(p * 12) + " / an";
+        b.onclick = () => openIncDetail(f.id);
+        li.append(b); $("incList").append(li);
+      });
+    });
+  if (incCurId) renderIncDetail();
+}
+
+function openIncDetail(id) { incCurId = id; show("tabIncDetail"); renderIncDetail(); }
+
+function renderIncDetail() {
+  const f = incomes.find(x => x.id === incCurId);
+  if (!f) { incCurId = null; if (!$("tabIncDetail").hidden) show("tabInc"); return; }
+  const ps = prices(f), now = today.slice(0, 7), start = ps[0].from, n = diffM(start, now);
+  $("idTitle").textContent = f.label;
+  $("idAmount").textContent = eur(curPrice(f));
+  const info = [["Catégorie", f.category], ["Compte", f.account ? "Versé sur " + f.account : "Non précisé"], ["Versement", `le ${f.day || "?"} de chaque mois`],
+    ["Depuis", n < 0 ? `${fmtM(start)} (à venir)` : n === 0 ? `${fmtM(start)} (ce mois-ci)` : `${fmtM(start)} (${dur(n)})`]];
+  $("idInfo").innerHTML = "";
+  info.forEach(([k, v]) => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span class='mute'></span><span></span>";
+    li.children[0].textContent = k; li.children[1].textContent = v; $("idInfo").append(li);
+  });
+  const from = n > 23 ? addM(now, -23) : start, last = n < 0 ? start : now, pts = [];
+  for (let m = from; m <= last; m = addM(m, 1)) pts.push({ m, v: priceAt(f, m) ?? ps[0].amount });
+  $("incChart").innerHTML = chartSvg(pts);
+  $("incChartNote").hidden = pts.length > 1;
+  $("idHistBox").hidden = ps.length < 2;
+  $("idHist").innerHTML = "";
+  ps.slice().reverse().forEach(x => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span></span><span class='amt'></span>";
+    li.children[0].textContent = "Depuis " + fmtM(x.from); li.children[1].textContent = eur(x.amount);
+    $("idHist").append(li);
+  });
+}
+
+function resetIncForm() {
+  $("iaccount").value = "Commun";
+  incEditId = null;
+  ["ilabel", "iamount", "iday"].forEach(i => $(i).value = "");
+  $("istart").value = today.slice(0, 7); $("istart").hidden = false;
+  $("ichange").hidden = true; $("ihint").hidden = true;
+  $("btnInc").textContent = "Ajouter"; $("itTitle").textContent = "Ajouter un revenu fixe"; $("btnIncCancel").hidden = true;
+}
+
+function startIncEdit(f) {
+  incEditId = f.id;
+  $("ilabel").value = f.label; $("iamount").value = curPrice(f);
+  $("icategory").value = f.category; $("iaccount").value = f.account || "Commun"; $("iday").value = f.day || "";
+  $("istart").hidden = true; $("ichange").hidden = false; $("ichange").value = today.slice(0, 7); $("ihint").hidden = false;
+  $("btnInc").textContent = "Enregistrer"; $("itTitle").textContent = "Modifier le revenu fixe"; $("btnIncCancel").hidden = false;
+  show("tabInc"); $("ilabel").focus();
+}
+
+$("btnIncCancel").onclick = () => { const b = incEditId; resetIncForm(); if (b) openIncDetail(b); };
+$("btnIncEdit").onclick = () => { const f = incomes.find(x => x.id === incCurId); if (f) startIncEdit(f); };
+$("btnIncBack").onclick = () => { incCurId = null; show("tabInc"); };
+$("btnIncDel").onclick = async () => {
+  const f = incomes.find(x => x.id === incCurId);
+  if (f && confirm(`Supprimer « ${f.label} » ? Il ne sera plus ajouté aux mois, passés comme futurs.`)) {
+    await deleteDoc(doc(db, "recurringIncome", f.id)); incCurId = null; show("tabInc");
+  }
+};
+
+$("btnInc").onclick = async () => {
+  const label = $("ilabel").value.trim(), amount = parseFloat($("iamount").value), cat = $("icategory").value, acc = $("iaccount").value;
+  const day = Math.min(31, Math.max(1, parseInt($("iday").value) || 1));
+  if (!label || !(amount > 0)) return;
+  if (incEditId) {
+    const f = incomes.find(x => x.id === incEditId);
+    let ps = prices(f);
+    if (amount !== curPrice(f)) {
+      const from = $("ichange").value || today.slice(0, 7);
+      ps = ps.filter(x => x.from !== from).concat({ from, amount }).sort((a, b) => a.from.localeCompare(b.from));
+    }
+    await updateDoc(doc(db, "recurringIncome", incEditId), { label, category: cat, account: acc, day, prices: ps, start: ps[0].from, amount: ps[ps.length - 1].amount });
+    const id = incEditId; resetIncForm(); openIncDetail(id);
+  } else {
+    const start = $("istart").value;
+    if (!start) return;
+    await addDoc(collection(db, "recurringIncome"), {
+      label, amount, day, start, category: cat, account: acc, prices: [{ from: start, amount }],
+      by: auth.currentUser.email, created: serverTimestamp()
+    });
+    resetIncForm();
+  }
+};
+
+const incFixed = m => incomes.reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+const incAcct = (acc, m) => incomes.filter(f => acc === "Commun" ? (f.account !== "Julien" && f.account !== "Marie") : f.account === acc).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+const goTab = id => { document.querySelectorAll("nav button").forEach(x => x.classList.remove("on")); show(id); };
+$("goFixed").onclick = () => goTab("tabFixed");
+$("goInc").onclick = () => goTab("tabInc");
+$("goMut").onclick = () => { goTab("tabMut"); renderMut(); };
+$("goCats").onclick = () => { goTab("tabCats"); renderCats(); };
+$("goCatView").onclick = () => goTab("tabCatView");
+$("catViewBack").onclick = () => document.querySelector('nav [data-t="month"]').click();
+
+function occOf(p) {
+  if (!p.yearly) return p.month;
+  const cur = today.slice(0, 7), mm = p.month.slice(5);
+  let occ = cur.slice(0, 4) + "-" + mm;
+  if (occ < p.month) occ = p.month;
+  if (occ < cur) occ = (+cur.slice(0, 4) + 1) + "-" + mm;
+  return occ;
+}
+const occursIn = (p, m) => p.yearly ? (m >= p.month && m.slice(5) === p.month.slice(5)) : p.month === m;
+const planBuysOf = id => planBuys.filter(x => x.planId === id);
+const buysFor = (p, occ) => planBuys.filter(x => x.planId === p.id && (!p.yearly || x.planMonth === occ));
+const planSpent = (p, occ = occOf(p)) => buysFor(p, occ).reduce((t, x) => t + x.amount, 0);
+function planFor(m) {
+  let total = 0, actual = 0;
+  planned.filter(p => occursIn(p, m)).forEach(p => {
+    const bs = buysFor(p, m), A = bs.reduce((t, x) => t + x.amount, 0), Am = bs.filter(x => x.month === m).reduce((t, x) => t + x.amount, 0);
+    total += Am + Math.max(p.amount - A, 0); actual += Am;
+  });
+  return { total, actual };
+}
+const planState = p => { const A = planSpent(p), left = p.amount - A, pct = p.amount > 0 ? Math.min(100, A / p.amount * 100) : 0; return { A, left, pct, col: left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)" }; };
+const monthLabel = ym => new Date(ym + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+const nextMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+$("pmonth").value = nextMonth();
+
+function renderPlan() {
+  if (planDetailId) { const p = planned.find(x => x.id === planDetailId); p ? renderPlanDetail(p) : closePlan(); }
+  const m = $("month").value, cur = today.slice(0, 7);
+  const list = planned.filter(p => p.yearly || p.month >= cur || p.month === m).sort((a, b) => occOf(a).localeCompare(occOf(b)));
+  $("planList").innerHTML = "";
+  if (!list.length) { $("planList").innerHTML = "<li class='mute'>Aucune dépense prévue.</li>"; return; }
+  list.forEach(p => {
+    const st = planState(p), li = document.createElement("li"), b = document.createElement("button");
+    b.className = "rowbtn";
+    b.innerHTML = "<span style='flex:1;min-width:0'><span class='nm'></span><small></small><span class='bar' style='display:block;height:6px;margin:6px 0 0'><i></i></span></span><span class='amt'><b></b><small></small></span>";
+    const L = b.children[0], R = b.children[1];
+    L.querySelector(".nm").textContent = p.label;
+    L.querySelector("small").textContent = `${monthLabel(occOf(p))} · ${p.category}${p.yearly ? " · ↻ chaque année" : ""}`;
+    const f = L.querySelector("i"); f.style.width = st.pct + "%"; f.style.background = st.col;
+    R.querySelector("b").textContent = eur0(p.amount);
+    R.querySelector("small").textContent = st.left < 0 ? `dépassé de ${eur0(-st.left)}` : `reste ${eur0(st.left)}`;
+    b.onclick = () => openPlan(p.id);
+    li.append(b); $("planList").append(li);
+  });
+}
+
+function openPlan(id) {
+  const p = planned.find(x => x.id === id); if (!p) return;
+  planDetailId = id; $("planMain").hidden = true; $("planDetail").hidden = false;
+  $("pbDate").value = today;
+  renderPlanDetail(p); window.scrollTo(0, 0);
+}
+function closePlan() { planDetailId = null; $("planMain").hidden = false; $("planDetail").hidden = true; }
+$("pBack").onclick = closePlan;
+
+function renderPlanDetail(p) {
+  const st = planState(p);
+  $("pdName").textContent = p.label;
+  $("pdLeft").textContent = eur(st.left); $("pdLeft").style.color = st.col;
+  $("pdFill").style.width = st.pct + "%"; $("pdFill").style.background = st.col;
+  $("pdSum").textContent = `${eur(st.A)} dépensés sur ${eur(p.amount)}`;
+  $("pdInfo").textContent = `Prévu en ${monthLabel(occOf(p))} · ${p.category}${p.yearly ? " · revient chaque année" : ""}`;
+  $("pdEdit").onclick = () => startPlanEdit(p);
+  $("pdDel").onclick = () => confirm("Supprimer « " + p.label + " » ? Les achats déjà saisis restent dans les dépenses du mois.") && deleteDoc(doc(db, "planned", p.id));
+  const buys = buysFor(p, occOf(p)).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  $("pbEmpty").hidden = buys.length > 0;
+  $("pbList").innerHTML = "";
+  buys.forEach(x => {
+    const li = document.createElement("li"), l = document.createElement("div"), r = document.createElement("div");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    l.children[0].textContent = x.label;
+    l.children[1].textContent = `${new Date(x.date).toLocaleDateString("fr-FR")}${x.account ? " · " + x.account : ""}`;
+    r.innerHTML = `<span class="amt">${eur(x.amount)}</span>`;
+    const d = document.createElement("button");
+    d.className = "ghost"; d.textContent = "Supprimer"; d.setAttribute("aria-label", "Supprimer " + x.label);
+    d.onclick = () => confirm("Supprimer cet achat ?") && deleteDoc(doc(db, "expenses", x.id));
+    r.append(d); li.append(l, r); $("pbList").append(li);
+  });
+}
+
+$("pbAdd").onclick = async () => {
+  const p = planned.find(x => x.id === planDetailId); if (!p) return;
+  const label = $("pbLabel").value.trim(), amount = parseFloat($("pbAmount").value), date = $("pbDate").value;
+  if (!label || !(amount > 0) || !date) return;
+  await addDoc(collection(db, "expenses"), { label, amount, date, category: p.category, account: $("pbAccount").value, planId: p.id, planLabel: p.label, planMonth: occOf(p), month: date.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp() });
+  $("pbLabel").value = ""; $("pbAmount").value = "";
+};
+
+function resetPlanForm() {
+  planEditId = null;
+  $("plabel").value = ""; $("pamount").value = ""; $("pmonth").value = nextMonth(); $("pYear").checked = false;
+  $("btnPlan").textContent = "Prévoir"; $("btnPlanCancel").hidden = true;
+  $("ptitle").textContent = "📅 Dépenses prévues";
+}
+function startPlanEdit(p) {
+  closePlan(); planEditId = p.id;
+  $("plabel").value = p.label; $("pamount").value = p.amount; $("pcat").value = p.category; $("pmonth").value = p.month; $("pYear").checked = !!p.yearly;
+  $("btnPlan").textContent = "Enregistrer"; $("btnPlanCancel").hidden = false;
+  $("ptitle").textContent = "Modifier la dépense prévue";
+  $("plabel").scrollIntoView({ behavior: "smooth", block: "center" }); $("plabel").focus();
+}
+$("btnPlanCancel").onclick = () => { const w = planEditId; resetPlanForm(); if (w) openPlan(w); };
+
+$("btnPlan").onclick = async () => {
+  const label = $("plabel").value.trim(), amount = parseFloat($("pamount").value), month = $("pmonth").value;
+  if (!label || !(amount > 0) || !month) return;
+  const was = planEditId, data = { label, amount, month, category: $("pcat").value, yearly: $("pYear").checked };
+  if (was) {
+    const old = planned.find(x => x.id === was);
+    if (old && data.yearly && !old.yearly) await Promise.all(planBuysOf(was).filter(x => !x.planMonth).map(x => updateDoc(doc(db, "expenses", x.id), { planMonth: old.month })));
+    await updateDoc(doc(db, "planned", was), data);
+  } else {
+    await addDoc(collection(db, "planned"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });
+  }
+  resetPlanForm();
+  if (was) openPlan(was);
+};
+
+const ZONES = ["Commun", "Marie", "Julien"];
+const COMMON_CATS = ["Jow", "Enfants", "Travaux", "Fast Food", "Boulangerie", "Animaux", "Imprévus", "Santé", "Autre"];
+const PERSONAL_CATS = ["Carburant", "Loisirs", "Cigarette", "Jeux"];
+const estId = (zone, cat) => zone + "|" + cat;
+const estEntries = () => Object.entries(estimates).map(([id, v]) => {
+  const category = v.category || id;
+  return { id, category, mode: v.mode, amount: v.amount, zone: v.zone || (PERSONAL_CATS.includes(category) ? "À classer" : "Commun") };
+});
+const isPerson = z => z === "Marie" || z === "Julien";
+const ownersOf = c => estEntries().filter(e => isPerson(e.zone) && e.category === c).map(e => e.zone);
+const inZone = (zone, cat, x) => x.category === cat && (isPerson(zone) ? x.account === zone : !ownersOf(cat).includes(x.account));
+const estActual = (en, list = expenses) => list.filter(x => !x.planId && inZone(en.zone, en.category, x)).reduce((t, x) => t + x.amount, 0);
+function estFor() {
+  let total = 0, actual = 0;
+  estEntries().forEach(en => { const A = estActual(en); total += Math.max(estAmt(en), A); actual += A; });
+  return { total, actual };
+}
+function estAvg() {
+  const cur = today.slice(0, 7), past = histExp.filter(e => e.month < cur && !e.planId);
+  if (!past.length) return { n: 0, past: [] };
+  const mi = ym => +ym.slice(0, 4) * 12 + +ym.slice(5) - 1;
+  const first = past.reduce((a, e) => e.month < a ? e.month : a, past[0].month);
+  return { n: Math.max(1, mi(cur) - mi(first)), past };
+}
+let avgC = { n: 0, past: [] }, estEditId = null;
+const avgOf = (zone, cat) => avgC.n ? avgC.past.filter(x => inZone(zone, cat, x)).reduce((t, x) => t + x.amount, 0) / avgC.n : 0;
+const estAmt = en => en.mode === "auto" ? Math.round(avgOf(en.zone, en.category)) : (en.amount || 0);
+const estTotalAmt = () => estEntries().reduce((t, en) => t + estAmt(en), 0);
+const commonEntry = cat => estEntries().find(en => en.zone === "Commun" && en.category === cat);
+
+async function saveEst(zone, cat, mode, amount, oldId) {
+  const id = estId(zone, cat);
+  await setDoc(doc(db, "estimates", id), { category: cat, zone, mode, amount });
+  if (oldId && oldId !== id) await deleteDoc(doc(db, "estimates", oldId));
+  const old = estimates[cat];
+  if (old && !old.zone && cat !== oldId) {
+    const legacyZone = PERSONAL_CATS.includes(cat) ? "À classer" : "Commun";
+    if (legacyZone === "À classer" || zone === "Commun") await deleteDoc(doc(db, "estimates", cat));
+  }
+}
+
+function estRow(z, cat, en) {
+  const n = avgC.n, A = en ? estActual(en) : 0, avg = avgOf(z, cat), li = document.createElement("li");
+  li.style.display = "block";
+  const head = document.createElement("div"); head.className = "cat"; head.innerHTML = "<b></b><b></b>";
+  head.children[0].textContent = cat; head.children[1].textContent = en ? eur0(estAmt(en)) + " / mois" : "";
+  li.append(head);
+  if (en) {
+    const E = estAmt(en), pct = E > 0 ? Math.min(100, A / E * 100) : 0, left = E - A;
+    const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+    const bar = document.createElement("div"); bar.className = "bar"; bar.innerHTML = "<i></i>";
+    bar.firstChild.style.width = pct + "%"; bar.firstChild.style.background = col; li.append(bar);
+    const t = document.createElement("div"); t.className = "mute";
+    t.textContent = `Ce mois-ci : ${eur0(A)} dépensés, ${left < 0 ? "dépassé de " + eur0(-left) : "reste " + eur0(left)}`; li.append(t);
+  }
+  const m = document.createElement("div"); m.className = "mute";
+  m.textContent = (en ? (en.mode === "auto" ? "Mode : moyenne depuis toujours · " : "Mode : valeur saisie · ") : "Pas encore d'estimation · ") + (avg > 0 ? `Moyenne depuis toujours : ${eur0(avg)} / mois (sur ${n} mois)` : (n ? "Pas de dépense passée dans cette catégorie" : "Moyenne : disponible après un mois complet"));
+  li.append(m);
+  const btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; return b; };
+  const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "8px";
+  if (en) row.append(btn("Modifier", () => { estEditId = en.id; $("estZone").value = z === "À classer" ? "Julien" : z; $("estCat").value = cat; $("estMode").value = en.mode === "auto" ? "auto" : "manual"; $("estAmt").value = estAmt(en); syncEstMode(); window.scrollTo(0, 0); }, true));
+  if (avg > 0 && z !== "À classer" && !(en && en.mode === "auto")) row.append(btn(en ? "Passer à la moyenne" : "Estimer à la moyenne", () => saveEst(z, cat, "auto", Math.round(avg), en && en.id), !!en));
+  if (!en) row.append(btn("Masquer", () => hideSugg(z, cat), true));
+  if (en) row.append(btn("Supprimer", () => confirm("Supprimer l'estimation « " + cat + " » (" + z + ") ?") && deleteDoc(doc(db, "estimates", en.id)), true));
+  if (row.children.length) li.append(row);
+  return li;
+}
+
+function renderEst() {
+  const entries = estEntries();
+  $("estTotal").textContent = eur0(entries.reduce((t, en) => t + estAmt(en), 0)) + " / mois";
+  const zones = ZONES.concat(entries.some(e => e.zone === "À classer") ? ["À classer"] : []);
+  const tint = { Commun: "blanc", Marie: "rose", Julien: "bleu", "À classer": "blanc" };
+  const hidden = (flags && flags.hiddenSugg) || [];
+  const box = $("estZones"); box.innerHTML = ""; let any = false;
+  zones.forEach(z => {
+    const mine = entries.filter(e => e.zone === z).sort((a, b) => estAmt(b) - estAmt(a));
+    const pool = z === "Commun" ? COMMON_CATS : isPerson(z) ? PERSONAL_CATS : [];
+    const sugg = pool.filter(c => !mine.some(e => e.category === c) && avgOf(z, c) > 0 && !hidden.includes(z + "|" + c)).sort((a, b) => avgOf(z, b) - avgOf(z, a));
+    if (!mine.length && !sugg.length && z !== "Commun" && !isPerson(z)) return;
+    any = any || mine.length > 0 || sugg.length > 0;
+    const sec = document.createElement("section");
+    const col = tint[z];
+    sec.style.cssText = `background:var(--${col});border:1px solid var(--line);border-left:4px solid var(--${col}-b)`;
+    const h = document.createElement("div"); h.className = "cat"; h.style.fontWeight = "700"; h.innerHTML = "<span></span><span></span>";
+    h.children[0].textContent = z === "Commun" ? "Commun · budgets partagés" : z === "À classer" ? "À classer" : "Compte " + z + " · budgets personnels";
+    h.children[1].textContent = eur0(mine.reduce((t, e) => t + estAmt(e), 0)) + " / mois";
+    sec.append(h);
+    if (z === "À classer") { const p = document.createElement("div"); p.className = "mute"; p.style.fontSize = ".8rem"; p.textContent = "Anciennes estimations sans compte : utilisez Modifier pour choisir Commun, Marie ou Julien."; sec.append(p); }
+    const ul = document.createElement("ul");
+    mine.forEach(en => ul.append(estRow(z, en.category, en)));
+    sugg.forEach(c => ul.append(estRow(z, c, null)));
+    if (!mine.length && !sugg.length) { const li = document.createElement("li"); li.className = "mute"; li.textContent = "Aucune estimation dans cette zone."; ul.append(li); }
+    sec.append(ul); box.append(sec);
+  });
+  if (hidden.length) {
+    const b = document.createElement("button"); b.className = "ghost"; b.style.marginTop = "12px";
+    b.textContent = `Réafficher les suggestions masquées (${hidden.length})`;
+    b.onclick = () => setDoc(doc(db, "settings", "flags"), { hiddenSugg: [] }, { merge: true });
+    box.append(b);
+  }
+  $("estEmpty").hidden = any;
+}
+const hideSugg = (z, c) => setDoc(doc(db, "settings", "flags"), { hiddenSugg: [...new Set([...((flags && flags.hiddenSugg) || []), z + "|" + c])] }, { merge: true });
+
+function syncEstMode() { $("estAmt").hidden = $("estMode").value === "auto"; }
+$("estMode").onchange = syncEstMode;
+$("btnEst").onclick = async () => {
+  const c = $("estCat").value, z = $("estZone").value, oldId = estEditId;
+  if ($("estMode").value === "auto") await saveEst(z, c, "auto", Math.round(avgOf(z, c)), oldId);
+  else {
+    const amount = parseFloat($("estAmt").value);
+    if (!(amount >= 0) || $("estAmt").value === "") return;
+    await saveEst(z, c, "manual", amount, oldId);
+  }
+  estEditId = null; $("estAmt").value = "";
+};
+
+function miniGauge(label, spent, budget) {
+  const pct = budget > 0 ? Math.min(100, spent / budget * 100) : 0, left = budget - spent;
+  const col = left < 0 ? "var(--bad)" : pct > 80 ? "var(--warn)" : "var(--ok)";
+  const w = document.createElement("div"); w.style.cssText = "margin:0 0 10px 14px";
+  w.innerHTML = "<div class='cat' style='font-size:.85rem;padding:0'><span></span><span></span></div><div class='bar' style='height:6px;margin:4px 0 0'><i></i></div>";
+  const sp = w.querySelectorAll("span");
+  sp[0].textContent = label; sp[1].textContent = `${eur0(spent)} / ${eur0(budget)}`;
+  const f = w.querySelector("i"); f.style.width = pct + "%"; f.style.background = col;
+  return w;
+}
+
+const nmo = (ym, k) => { const d = new Date(+ym.slice(0, 4), +ym.slice(5) - 1 + k, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+function renderFuture() {
+  const m = $("month").value, box = $("future");
+  box.innerHTML = "";
+  if (!m) return;
+  const estTot = estTotalAmt();
+  for (let k = 1; k <= 3; k++) {
+    const x = nmo(m, k);
+    const si = salInfo(x), real = si && !si.estJ && !si.estM ? 1 : 0;
+    const sal = (si ? si.Julien + si.Marie : 0) + incFixed(x);
+    const out = fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + planFor(x).total + estTot + pendCost(x);
+    const d = document.createElement("div"); d.className = "fut";
+    d.innerHTML = "<div class='mute'></div><b></b><div class='mute' style='font-size:.75rem'></div>";
+    d.children[0].textContent = new Date(x + "-01").toLocaleDateString("fr-FR", { month: "long" });
+    d.children[1].textContent = sal > 0 ? eur0(sal - out) : "—";
+    if (sal > 0 && sal - out < 0) d.children[1].style.color = "var(--bad)";
+    d.children[2].textContent = sal > 0 ? (real > 0 ? "salaires saisis" : "prévision") : "salaires inconnus";
+    d.style.cursor = "pointer"; d.tabIndex = 0; d.setAttribute("role", "button");
+    d.setAttribute("aria-label", "Voir " + new Date(x + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }));
+    const go = () => { $("month").value = x; $("month").onchange(); window.scrollTo(0, 0); };
+    d.onclick = go; d.onkeydown = e => { if (e.key === "Enter") go(); };
+    box.append(d);
+  }
+  if (m !== today.slice(0, 7)) {
+    const b = document.createElement("div"); b.className = "fut"; b.style.cssText = "cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;padding:10px 12px";
+    b.tabIndex = 0; b.setAttribute("role", "button"); b.textContent = "↩ Mois en cours";
+    const back = () => { $("month").value = today.slice(0, 7); $("month").onchange(); window.scrollTo(0, 0); };
+    b.onclick = back; b.onkeydown = e => { if (e.key === "Enter") back(); };
+    box.append(b);
+  }
+}
+
+function projRem(x) {
+  const si = salInfo(x);
+  const sal = (si ? si.Julien + si.Marie : 0) + incFixed(x);
+  if (!(sal > 0)) return null;
+  const estTot = estTotalAmt();
+  return sal - (fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0) + planFor(x).total + estTot + pendCost(x));
+}
+function giftPlan() {
+  const cur = today.slice(0, 7), S = [];
+  let acc = 0;
+  for (let k = 0; k <= 24; k++) {
+    const x = nmo(cur, k);
+    const r = (k === 0 && curLeft.m === cur && curLeft.v !== null) ? curLeft.v : projRem(x);
+    if (r === null) break;
+    acc += r; S.push(acc);
+  }
+  const when = {}; let C = 0;
+  gifts.filter(g => !g.done && g.price > 0).sort((a, b) => a.price - b.price || (a.label || "").localeCompare(b.label || "")).forEach(g => {
+    C += g.price; when[g.id] = S.findIndex(v => v >= C);
+  });
+  return { when, known: S.length > 0, cur };
+}
+function giftWhen(g, gp) {
+  if (g.done) return "";
+  if (!(g.price > 0)) return "Prix à définir";
+  if (!gp.known) return "Salaires non renseignés";
+  const k = gp.when[g.id];
+  return k < 0 ? "Pas avant plus de 2 ans" : k === 0 ? "Possible dès ce mois-ci" : "Possible dès " + monthLabel(nmo(gp.cur, k));
+}
+
+const wMonth = w => {
+  const cur = today.slice(0, 7);
+  if (w.done) return (w.doneDate || today).slice(0, 7);
+  const d = w.due ? w.due.slice(0, 7) : cur;
+  return d > cur ? d : cur;
+};
+function pendSum(m, who) {
+  let pay = 0, inc = 0;
+  waits.forEach(w => {
+    if (who && who !== "all") { const common = w.account !== "Julien" && w.account !== "Marie"; if (who === "Commun" ? !common : w.account !== who) return; }
+    if (wMonth(w) !== m) return;
+    if (w.type === "in") inc += w.amount || 0; else if (!w.done) pay += w.amount || 0;
+  });
+  return { pay, inc };
+}
+const pendCost = (m, who) => { const r = pendSum(m, who); return r.pay - r.inc; };
+
+
+async function validateWait(w, exact = w.amount, acc = w.account || "Commun") {
+  if (w.type === "pay") {
+    await addDoc(collection(db, "expenses"), { label: w.label, amount: exact, date: today, category: w.cat || "Autre", account: acc, month: today.slice(0, 7), by: auth.currentUser.email, created: serverTimestamp(), fromPending: w.id, mutId: w.mutId || "", care: w.care || "", forWho: w.forWho || "", sub: w.sub || w.shop || "" });
+    const rit = w.mutId ? mutItems.find(i => i.id === w.mutId) : null;
+    const refund = rit ? calcRefund(rit, exact, today.slice(0, 4)) : (w.refund || 0);
+    if (refund > 0) await addRefund(w.label, refund, acc, w.refundDue || addDays(today, 10), w.mutId || "");
+  }
+  await updateDoc(doc(db, "pending", w.id), { done: true, doneDate: today, amount: exact, expected: w.amount, account: acc });
+}
+
+function askValidate(w) {
+  const isIn = w.type === "in", dlg = $("valDlg");
+  $("valTitle").textContent = isIn ? "Valider le crédit" : "Valider le paiement";
+  $("valSub").textContent = w.label + " · prévu : " + eur(w.amount);
+  $("valAll").checked = true; $("valFull").textContent = eur(w.amount);
+  $("valAmt").value = ""; $("valAmt").disabled = true; $("valAcc").value = w.account || "Commun";
+  $("valAmt").placeholder = isIn ? "Montant exact reçu (€)" : "Montant exact débité (€)";
+  valUpd = () => {
+    const it = w.type === "pay" && w.mutId ? mutItems.find(i => i.id === w.mutId) : null;
+    if (!it) { $("valRef").hidden = true; return; }
+    const ex = $("valAll").checked ? w.amount : (parseFloat($("valAmt").value) || 0);
+    const r = calcRefund(it, ex, today.slice(0, 4));
+    $("valRef").hidden = false;
+    $("valRef").textContent = r > 0 ? `Remboursement mutuelle prévu : +${eur(r)} (une ligne sera ajoutée dans « À venir »)` : "Plafond de remboursement de l'année atteint : aucun remboursement attendu.";
+  };
+  valUpd();
+  $("valOk").onclick = async () => {
+    const exact = $("valAll").checked ? w.amount : parseFloat($("valAmt").value);
+    if (!(exact >= 0)) { $("valAmt").focus(); return; }
+    dlg.close(); await validateWait(w, exact, $("valAcc").value);
+  };
+  if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+}
+let valUpd = () => {};
+$("valAll").onchange = () => { $("valAmt").disabled = $("valAll").checked; if (!$("valAll").checked) $("valAmt").focus(); valUpd(); };
+$("valAmt").oninput = () => valUpd();
+$("valAmt").onkeydown = e => { if (e.key === "Enter") $("valOk").click(); };
+$("valCancel").onclick = () => $("valDlg").close();
+
+function upcomingAuto() {
+  const out = [], horizon = addDays(today, 30), cur = today.slice(0, 7);
+  const mk = (arr, kind) => arr.forEach(f => {
+    [cur, nmo(cur, 1)].forEach(mm => {
+      const p = priceAt(f, mm) || 0; if (!(p > 0)) return;
+      const dim = new Date(+mm.slice(0, 4), +mm.slice(5), 0).getDate();
+      const date = mm + "-" + String(Math.min(Math.max(1, f.day || 1), dim)).padStart(2, "0");
+      if (date > today && date <= horizon) out.push({ kind, f, p, date });
+    });
+  });
+  mk(fixed, "pay"); mk(incomes, "in");
+  return out;
+}
+function autoRow(a) {
+  const f = a.f, isOut = a.kind === "pay", li = document.createElement("li");
+  if (f.account) li.className = "acc-" + f.account;
+  li.style.borderLeftStyle = "dashed";
+  const top = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
+  li.style.display = "block"; top.style.cssText = "display:flex;justify-content:space-between;align-items:flex-start;gap:8px"; t.style.cssText = "flex:1;min-width:0;overflow-wrap:anywhere";
+  const pill = document.createElement("span"); pill.textContent = "⟳ Auto";
+  pill.style.cssText = "font-size:.7rem;border-radius:999px;padding:1px 7px;margin-right:6px;white-space:nowrap;color:var(--mute);border:1px dashed var(--mute)";
+  t.append(pill, document.createTextNode(f.label));
+  m.className = "mute"; m.style.cssText = "font-size:.8rem;font-style:italic;margin-top:2px";
+  m.textContent = `${new Date(a.date).toLocaleDateString("fr-FR")} · ${isOut ? "prélèvement" : "versement"} automatique${f.account ? " · " + f.account : ""}`;
+  const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;margin-top:6px;flex-wrap:wrap";
+  const amt = document.createElement("span"); amt.className = "amt"; amt.textContent = (isOut ? "− " : "+ ") + eur(a.p);
+  amt.style.cssText = "font-weight:700;white-space:nowrap;color:" + (isOut ? "var(--bad)" : "var(--ok)");
+  top.append(t, amt);
+  const b = document.createElement("button"); b.className = "ghost"; b.textContent = "Gérer"; b.setAttribute("aria-label", "Gérer " + f.label);
+  b.onclick = () => { document.querySelectorAll("nav button").forEach(n => n.classList.remove("on")); isOut ? openDetail(f.id) : openIncDetail(f.id); };
+  r.append(b); li.append(top, m, r); return li;
+}
+let waitAll = false, waitFilter = "manual";
+function refundInfo(w) {
+  if (w.type === "in" || w.done || !w.mutId) return "";
+  const it = mutItems.find(i => i.id === w.mutId); if (!it) return "";
+  const r = calcRefund(it, w.amount || 0, (w.due || today).slice(0, 4));
+  return r > 0 ? ` · remboursement prévu +${eur(r)}` : " · plafond de remboursement atteint";
+}
+function renderWait() {
+  const ul = $("waitList"); ul.innerHTML = "";
+  const ua = upcomingAuto(), uaSum = k => ua.filter(a => a.kind === k).reduce((t, a) => t + a.p, 0);
+  const open = waits.filter(w => !w.done), sum = t => open.filter(w => w.type === t).reduce((a, w) => a + (w.amount || 0), 0);
+  const arr = [...waits.map(w => ({ w, key: w.done ? "z" + (w.doneDate || "") : (w.due || "9999") })), ...ua.map(a => ({ a, key: a.date }))]
+    .sort((x, y) => x.key.localeCompare(y.key) || ((x.w || x.a.f).label || "").localeCompare((y.w || y.a.f).label || ""));
+  const view = waitFilter === "manual" ? arr.filter(x => x.w) : waitFilter === "auto" ? arr.filter(x => x.a) : arr;
+  const sumView = k => view.reduce((t, x) => t + (x.a ? (x.a.kind === k ? x.a.p : 0) : (!x.w.done && x.w.type === k ? (x.w.amount || 0) : 0)), 0);
+  $("waitTotal").textContent = arr.length ? `À payer : ${eur(sumView("pay"))} · À recevoir : ${eur(sumView("in"))}` : "Rien à venir pour l'instant.";
+  const fb = $("waitFilter"); fb.innerHTML = "";
+  [["all", `Tout (${arr.length})`], ["manual", `✍ Manuelles (${arr.filter(x => x.w).length})`], ["auto", `⟳ Automatiques (${arr.filter(x => x.a).length})`]].forEach(([v, t]) => {
+    const b = document.createElement("button"); b.textContent = t; b.className = waitFilter === v ? "" : "ghost"; b.style.cssText = "padding:4px 10px;font-size:.8rem";
+    b.onclick = () => { waitFilter = v; waitAll = false; renderWait(); }; fb.append(b);
+  });
+  if (arr.length && !view.length) { const li = document.createElement("li"); li.className = "mute"; li.textContent = "Rien dans cette vue."; ul.append(li); }
+  (waitAll ? view : view.slice(0, 5)).forEach(it => {
+    if (it.a) { ul.append(autoRow(it.a)); return; }
+    const w = it.w;
+    const li = document.createElement("li"), isIn = w.type === "in";
+    li.style.display = "block";
+    if (w.account) li.className = "acc-" + w.account;
+    const top = document.createElement("div"), t = document.createElement("div"), m = document.createElement("div");
+    top.style.cssText = "display:flex;justify-content:space-between;align-items:flex-start;gap:8px";
+    t.textContent = w.label; m.className = "mute"; m.style.cssText = "font-size:.8rem;margin-top:2px";
+    const late = !w.done && w.due && w.due < today;
+    m.textContent = (isIn ? "Revenu attendu" : "Paiement à faire") + (!isIn && w.cat ? " · " + w.cat : "") + (w.account ? " · " + w.account : "") + (w.due ? " · " + new Date(w.due).toLocaleDateString("fr-FR") : "") + (late ? " · en retard" : "") + (w.done ? (isIn ? " · reçu" : " · payé") : "");
+    const ri = refundInfo(w);
+    if (ri) { m.textContent += ri; m.style.whiteSpace = "normal"; }
+    if (late) m.style.color = "var(--bad)";
+    t.style.cssText = "flex:1;min-width:0;overflow-wrap:anywhere" + (w.done ? ";text-decoration:line-through;color:var(--mute)" : "");
+    const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;margin-top:6px;flex-wrap:wrap";
+    const a = document.createElement("span"); a.className = "amt"; a.textContent = (isIn ? "+ " : "− ") + eur(w.amount || 0);
+    a.style.cssText = "font-weight:700;white-space:nowrap;color:" + (isIn ? "var(--ok)" : "var(--bad)");
+    top.append(t, a);
+    if (!w.done) {
+      const ok = document.createElement("button"); ok.innerHTML = "✓<span class='vt'> Valider</span>"; ok.setAttribute("aria-label", "Valider " + w.label);
+      ok.onclick = () => askValidate(w);
+      const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + w.label);
+      ed.onclick = () => startWaitEdit(w);
+      r.append(ok, ed);
+    }
+    if (w.done) {
+      const ed2 = document.createElement("button"); ed2.className = "ghost"; ed2.textContent = "✎"; ed2.setAttribute("aria-label", "Modifier " + w.label);
+      ed2.onclick = () => startWaitEdit(w); r.append(ed2);
+    }
+    li.append(top, m); if (r.children.length) li.append(r); ul.append(li);
+  });
+  if (view.length > 5) {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.className = "ghost"; b.style.width = "100%"; b.textContent = waitAll ? "Réduire" : `Voir les ${view.length - 5} autres`;
+    b.onclick = () => { waitAll = !waitAll; renderWait(); };
+    li.append(b); ul.append(li);
+  }
+}
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+const MED = "Médecin (remboursé)";
+async function addRefund(label, amount, account, due, mutId = "") {
+  await addDoc(collection(db, "pending"), { type: "in", label: "Remboursement (" + label + ")", amount, account, due, cat: "", mutId, done: false, by: auth.currentUser.email, created: serverTimestamp() });
+}
+const dlgShow = d => d.showModal ? d.showModal() : d.setAttribute("open", "");
+function fillBody(box, lines) { box.innerHTML = ""; lines.filter(Boolean).forEach(t => { const d = document.createElement("div"); d.textContent = t; d.style.marginTop = "4px"; box.append(d); }); }
+function askConfirm(title, lines, okText = "Confirmer") {
+  return new Promise(res => {
+    $("cfmTitle").textContent = title; fillBody($("cfmBody"), lines); $("cfmOk").textContent = okText;
+    const dlg = $("cfmDlg");
+    $("cfmOk").onclick = () => { dlg.close(); res(true); };
+    $("cfmNo").onclick = () => { dlg.close(); res(false); };
+    dlg.oncancel = () => res(false);
+    dlgShow(dlg);
+  });
+}
+function showInfo(title, lines) {
+  return new Promise(res => {
+    $("infoTitle").textContent = title; fillBody($("infoBody"), lines);
+    const dlg = $("infoDlg");
+    $("infoOk").onclick = () => { dlg.close(); res(); };
+    dlg.oncancel = () => res();
+    dlgShow(dlg);
+  });
+}
+
+const DEFAULT_OWNER = { Cigarette: "Marie" };
+function allowedAccounts() {
+  if ($("ttype").value !== "exp") return ["Julien", "Marie", "Commun"];
+  const c = $("category").value, o = ownersOf(c);
+  if (o.length) return o;
+  return DEFAULT_OWNER[c] ? [DEFAULT_OWNER[c]] : ["Julien", "Marie", "Commun"];
+}
+function renderAccBtns() {
+  const box = $("accBtns"), list = allowedAccounts();
+  if ((exEditId || wEditId) && $("account").value && !list.includes($("account").value)) list.push($("account").value);
+  if (!list.includes($("account").value)) $("account").value = list.length === 1 ? list[0] : "";
+  box.innerHTML = "";
+  list.forEach(a => {
+    const b = document.createElement("button"); b.textContent = a; b.className = $("account").value === a ? "" : "ghost";
+    b.onclick = () => { $("account").value = a; txUpdate(); };
+    box.append(b);
+  });
+  $("accNote").textContent = list.length === 1 ? "Seul choix : compte " + list[0] : "";
+}
+const BENEF = ["Julien", "Marie", "Kélia", "Milio"];
+const DEFAULT_CATS = [...$("category").options].map(o => o.value).filter(Boolean);
+const DEFAULT_SUBS = { "Santé": ["Ostéopathe", "Médecin", "Pharmacie"], "Fast Food": ["Pizza", "McDo", "Burger King", "Kebab / Tacos", "Autre"] };
+const QUICK_CATS = ["Boulangerie"];
+const PROTECTED_CATS = ["Santé", "Lentilles", "Jow", "Courses", "Autre"];
+let cats = [], catsLoaded = false, histLoaded = false, waitsLoaded = false, migratingSante = false;
+const sortCats = l => [...l].sort((a, b) => (a === "Autre") - (b === "Autre") || a.localeCompare(b, "fr", { sensitivity: "base" }));
+const catNames = () => sortCats(cats.length ? cats.map(c => c.name) : DEFAULT_CATS);
+const noLabelCat = c => { const k = cats.find(x => x.name === c); return k && k.noLabel !== undefined ? !!k.noLabel : QUICK_CATS.includes(c); };
+const catSubs = c => { const k = cats.find(x => x.name === c); return k ? (k.subs || []) : (cats.length ? [] : (DEFAULT_SUBS[c] || [])); };
+function fillSub(cat) {
+  const sel = $("subType"), cur = sel.value, subs = catSubs(cat);
+  $("subLab").textContent = cat === "Fast Food" ? "Enseigne" : "Sous-catégorie";
+  sel.innerHTML = '<option value="">Choisir…</option>' + subs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  if (subs.includes(cur)) sel.value = cur;
+}
+function rebuildCatSelects() {
+  const names = catNames();
+  [["category", '<option value="" selected disabled>Choisir une catégorie…</option>'], ["estCat", ""]].forEach(([id, head]) => {
+    const sel = $(id), cur = sel.value;
+    sel.innerHTML = head + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    if (names.includes(cur)) sel.value = cur; else if (id === "category") sel.value = "";
+  });
+}
+async function maybeMigrateSante() {
+  if (migratingSante || !catsLoaded || flags === null || !histLoaded || !waitsLoaded || flags.santeMigrated || !cats.length) return;
+  migratingSante = true;
+  try {
+    const old = cats.find(c => c.name === "Soins"), sante = cats.find(c => c.name === "Santé");
+    if (old) {
+      if (sante) await deleteDoc(doc(db, "categories", sante.id));
+      await updateDoc(doc(db, "categories", old.id), { name: "Santé" });
+    }
+    await Promise.all([
+      ...histExp.filter(e => e.category === "Soins").map(e => updateDoc(doc(db, "expenses", e.id), { category: "Santé" })),
+      ...waits.filter(w => w.cat === "Soins").map(w => updateDoc(doc(db, "pending", w.id), { cat: "Santé" }))
+    ]);
+    await setDoc(doc(db, "settings", "flags"), { santeMigrated: true }, { merge: true });
+  } catch (e) { migratingSante = false; console.error(e); }
+}
+function maybeSeedCats() {
+  if (!catsLoaded || flags === null || flags.catsSeeded || cats.length) return;
+  flags.catsSeeded = true;
+  Promise.all(DEFAULT_CATS.map((name, i) => addDoc(collection(db, "categories"), { name, subs: DEFAULT_SUBS[name] || [], order: i })))
+    .then(() => setDoc(doc(db, "settings", "flags"), { catsSeeded: true }, { merge: true }))
+    .catch(e => { flags.catsSeeded = false; console.error(e); });
+}
+function renderCats() {
+  const box = $("catList"); if (!box) return; box.innerHTML = "";
+  if (!cats.length) { box.innerHTML = '<div class="mute">Chargement des catégories…</div>'; return; }
+  cats.forEach(c => {
+    const used = histExp.filter(e => e.category === c.name).length, prot = PROTECTED_CATS.includes(c.name);
+    const card = document.createElement("div"); card.style.cssText = "border-top:1px solid var(--line);padding:12px 0";
+    const head = document.createElement("div"); head.className = "cat"; head.style.padding = "0"; head.innerHTML = "<b></b><span class='mute' style='font-size:.8rem'></span>";
+    head.children[0].textContent = c.name + (prot ? " 🔒" : ""); head.children[1].textContent = used + " transaction" + (used > 1 ? "s" : "");
+    card.append(head);
+    const chips = document.createElement("div"); chips.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:8px 0";
+    (c.subs || []).forEach(sub => {
+      const b = document.createElement("button"); b.className = "ghost"; b.style.cssText = "padding:3px 9px;font-size:.85rem"; b.textContent = sub + " ✕"; b.setAttribute("aria-label", "Supprimer la sous-catégorie " + sub);
+      b.onclick = () => confirm("Supprimer la sous-catégorie « " + sub + " » ?") && updateDoc(doc(db, "categories", c.id), { subs: c.subs.filter(x => x !== sub) });
+      chips.append(b);
+    });
+    if (!(c.subs || []).length) { const m = document.createElement("span"); m.className = "mute"; m.style.fontSize = ".85rem"; m.textContent = "Aucune sous-catégorie"; chips.append(m); }
+    card.append(chips);
+    const cl = document.createElement("label"); cl.className = "mute"; cl.style.cssText = "display:flex;gap:6px;align-items:center;font-size:.85rem;margin-bottom:8px";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.style.width = "auto"; cb.checked = c.name === "Lentilles" || noLabelCat(c.name); cb.disabled = c.name === "Lentilles";
+    cb.onchange = () => updateDoc(doc(db, "categories", c.id), { noLabel: cb.checked });
+    cl.append(cb, document.createTextNode(c.name === "Lentilles" ? "Sans libellé (toujours)" : "Sans libellé : le nom de la catégorie (ou de la sous-catégorie) sert de libellé"));
+    card.append(cl);
+    const row = document.createElement("div"); row.className = "row";
+    const inp = document.createElement("input"); inp.placeholder = "Nouvelle sous-catégorie";
+    const add = document.createElement("button"); add.textContent = "＋ Sous-catégorie";
+    const doAdd = () => { const v = inp.value.trim(); if (!v || (c.subs || []).some(x => x.toLowerCase() === v.toLowerCase())) return; updateDoc(doc(db, "categories", c.id), { subs: [...(c.subs || []), v] }); };
+    add.onclick = doAdd; inp.onkeydown = e => { if (e.key === "Enter") doAdd(); };
+    row.append(inp, add);
+    if (!prot) { const del = document.createElement("button"); del.className = "ghost"; del.style.color = "var(--bad)"; del.textContent = "Supprimer la catégorie"; del.onclick = () => confirm("Supprimer la catégorie « " + c.name + " » ? Les " + used + " transaction(s) déjà saisies la gardent.") && deleteDoc(doc(db, "categories", c.id)); row.append(del); }
+    card.append(row); box.append(card);
+  });
+}
+$("catAdd").onclick = async () => {
+  const name = $("catNew").value.trim();
+  if (!name || name.includes("|") || cats.some(c => c.name.toLowerCase() === name.toLowerCase())) return;
+  await addDoc(collection(db, "categories"), { name, subs: [], order: cats.reduce((m, c) => Math.max(m, c.order || 0), 0) + 1 });
+  $("catNew").value = "";
+};
+$("catNew").onkeydown = e => { if (e.key === "Enter") $("catAdd").click(); };
+
+const CARE_DEFAULT = ["Ostéopathe", "Médecin", "Pharmacie"];
+let careFor = "", refManual = false;
+const fmtLeft = v => v === Infinity ? "illimité" : eur0(v);
+const careTypes = () => [...new Set([...catSubs("Santé"), ...mutItems.map(i => i.label).filter(l => l && l.toLowerCase() !== "lentilles")])];
+const ruleFor = (care, who) => mutItems.find(i => i.person === who && (i.label || "").toLowerCase() === (care || "").toLowerCase());
+function ruleText(it) {
+  const p = [];
+  if (it.rate > 0) p.push(it.rate + " %");
+  if (it.unit > 0) p.push("max " + eur0(it.unit) + " par séance");
+  if (it.yearly > 0) p.push("plafond " + eur0(it.yearly) + " par an");
+  return p.join(" · ") || "sans règle";
+}
+function calcRefund(it, cost, year) {
+  let r = cost;
+  if (it.rate > 0) r = cost * it.rate / 100;
+  if (it.unit > 0) r = Math.min(r, it.unit);
+  return Math.max(0, Math.round(Math.min(r, cost, mutUsage(it, year).left) * 100) / 100);
+}
+function fillCare() {
+  const sel = $("careType"), cur = sel.value, list = careTypes();
+  sel.innerHTML = '<option value="">Choisir le soin…</option>' + list.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  if (list.includes(cur)) sel.value = cur;
+}
+function renderWho() {
+  const box = $("whoBtns"); box.innerHTML = "";
+  BENEF.forEach(w => {
+    const b = document.createElement("button"); b.textContent = w; b.className = careFor === w ? "" : "ghost";
+    b.onclick = () => { careFor = w; refManual = false; txUpdate(); };
+    box.append(b);
+  });
+}
+function txUpdate() {
+  const t = $("ttype").value, exp = t === "exp", cred = t === "cred";
+  $("tDep").className = exp ? "" : "ghost"; $("tCred").className = cred ? "" : "ghost";
+  $("txStep2").hidden = !exp;
+  const cat = $("category").value, hasCat = exp && cat !== "", soins = exp && cat === "Santé", lent = exp && cat === "Lentilles", flow = soins || lent, lentNew = lent && !wEditId && !exEditId, hasSub = exp && cat !== "Santé" && cat !== "Lentilles" && catSubs(cat).length > 0, subSel = hasSub ? $("subType").value : "";
+  $("txSub").hidden = !hasSub; if (hasSub) fillSub(cat);
+  const quick = exp && QUICK_CATS.includes(cat) && !wEditId && !exEditId, noLab = exp && cat !== "Lentilles" && noLabelCat(cat) && !wEditId && !exEditId;
+  $("label").hidden = !(wEditId || exEditId) && (lentNew || ((quick || noLab) && !(hasSub && subSel === "Autre")) || (hasSub && subSel !== "" && subSel !== "Autre")); $("tpendBox").hidden = lentNew || quick || (soins && !wEditId && !exEditId) || !!exEditId || editDone; if (lentNew || quick || (soins && !wEditId && !exEditId) || exEditId || editDone) $("tpend").checked = false;
+  $("txCare").hidden = !flow; $("careTypeBox").hidden = !soins;
+  if (flow) { if (soins) fillCare(); renderWho(); }
+  const careOk = !flow || (careFor !== "" && (lent || $("careType").value !== ""));
+  const careName = lent ? "Lentilles" : $("careType").value;
+  $("txStep3").hidden = !(cred || (hasCat && careOk && (!hasSub || subSel !== "")));
+  if (!$("txStep3").hidden) renderAccBtns();
+  const hasAcc = !$("txStep3").hidden && $("account").value !== "";
+  $("txStep4").hidden = !hasAcc; $("btnAdd").hidden = !hasAcc;
+  const med = exp && cat === MED, rule = flow && careOk ? ruleFor(careName, careFor) : null;
+  $("refBox").hidden = !((med || (flow && careOk)) && !exEditId);
+  $("refMut").hidden = true;
+  if ((med || (flow && careOk)) && !$("refDate").value) $("refDate").value = addDays(today, 10);
+  if (med) fillRefMut();
+  if (rule && !refManual) { const c = calcRefund(rule, parseFloat($("amount").value) || 0, ($("date").value || today).slice(0, 4)); $("refAmt").value = c > 0 ? c : ""; }
+  $("dateLab").textContent = $("tpend").checked ? "Date prévue (facultative)" : "Date";
+  $("tHint").textContent = $("tpend").checked
+    ? "À venir : prise en compte dans le budget, à valider plus tard dans la liste « À venir »."
+    : (cred ? "Crédit enregistré tout de suite à la date choisie." : "Dépense enregistrée tout de suite à la date choisie.");
+  if (med) $("tHint").textContent += " Une ligne « Remboursement » sera ajoutée dans « À venir ».";
+  if (flow && careOk) $("tHint").textContent += rule
+    ? ` Mutuelle (${rule.label} · ${rule.person}) : ${ruleText(rule)}. Le remboursement est calculé automatiquement et reste modifiable.`
+    : ` Aucune règle de mutuelle pour ${careName} · ${careFor} : ajoutez-la dans la page d'un compte, rubrique Mutuelle.`;
+}
+$("tDep").onclick = () => { $("ttype").value = "exp"; txUpdate(); };
+$("tCred").onclick = () => { $("ttype").value = "cred"; txUpdate(); };
+$("category").onchange = () => { refManual = false; txUpdate(); };
+$("tpend").onchange = txUpdate; $("amount").oninput = txUpdate; $("date").onchange = txUpdate;
+$("careType").onchange = () => { refManual = false; txUpdate(); };
+$("subType").onchange = txUpdate;
+$("refAmt").oninput = () => { refManual = true; };
+
+function resetAddForm() {
+  wEditId = null; exEditId = null; editDone = false; careFor = ""; refManual = false; $("careType").value = ""; $("subType").value = "";
+  $("ttype").value = ""; $("category").value = ""; $("account").value = "";
+  $("label").value = ""; $("amount").value = ""; $("date").value = today;
+  $("tpend").checked = false; $("tpend").disabled = false;
+  $("refAmt").value = ""; $("refDate").value = "";
+  $("txTitle").textContent = "Ajouter une transaction"; $("btnAdd").textContent = "Ajouter"; $("btnAddDel").hidden = true;
+  txUpdate();
+}
+function openTx() { resetAddForm(); $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", ""); }
+function closeTx() { resetAddForm(); if ($("txDlg").open) $("txDlg").close(); }
+$("btnOpenTx").onclick = openTx;
+$("btnAddCancel").onclick = closeTx;
+
+function startExpenseEdit(e) {
+  resetAddForm();
+  exEditId = e.id;
+  $("ttype").value = "exp";
+  if (![...$("category").options].some(o => o.value === e.category)) $("category").add(new Option(e.category, e.category));
+  $("category").value = e.category; careFor = e.forWho || "";
+  txUpdate();
+  if (e.sub || e.shop) { $("subType").value = e.sub || e.shop; txUpdate(); }
+  if (e.care) { $("careType").value = e.care; txUpdate(); }
+  $("account").value = e.account || "Commun";
+  $("label").value = e.label || ""; $("amount").value = e.amount; $("date").value = e.date || today;
+  $("tpend").checked = false; $("tpend").disabled = true;
+  $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
+  txUpdate();
+  $("tHint").textContent = "Transaction déjà enregistrée : la modifier ne change pas un remboursement de mutuelle déjà créé.";
+  dlgShow($("txDlg"));
+}
+function startWaitEdit(w) {
+  resetAddForm();
+  wEditId = w.id;
+  $("ttype").value = w.type === "in" ? "cred" : "exp";
+  if (w.type !== "in") { const c = w.cat || "Autre"; if (![...$("category").options].some(o => o.value === c)) $("category").add(new Option(c, c)); $("category").value = c; }
+  careFor = w.forWho || "";
+  $("account").value = w.account || "Commun";
+  $("label").value = w.label; $("amount").value = w.amount; $("date").value = (w.done && w.type === "in" ? w.doneDate : w.due) || ""; editDone = !!w.done;
+  $("refAmt").value = w.refund || ""; $("refDate").value = w.refundDue || "";
+  $("tpend").checked = true; $("tpend").disabled = true;
+  $("txTitle").textContent = "Modifier la transaction"; $("btnAdd").textContent = "Enregistrer"; $("btnAddDel").hidden = false;
+  txUpdate();
+  if (w.sub || w.shop) { $("subType").value = w.sub || w.shop; txUpdate(); }
+  if (w.care) { $("careType").value = w.care; refManual = true; $("refAmt").value = w.refund || ""; txUpdate(); }
+  $("refMut").value = w.mutId || "";
+  if (w.done) $("tHint").textContent = "Élément déjà validé : la modification ne change pas la dépense déjà enregistrée.";
+  $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
+}
+$("btnAddDel").onclick = async () => {
+  if (exEditId) {
+    if (!confirm("Supprimer cette dépense ?")) return;
+    await deleteDoc(doc(db, "expenses", exEditId)); closeTx(); return;
+  }
+  const w = waits.find(x => x.id === wEditId); if (!w) return;
+  if (!confirm("Supprimer « " + w.label + " » ?" + (w.done && w.type === "pay" ? " La dépense déjà validée reste dans les dépenses du mois." : ""))) return;
+  await deleteDoc(doc(db, "pending", w.id)); closeTx();
+};
+
+$("btnAdd").onclick = async () => {
+  const amount = parseFloat($("amount").value), date = $("date").value;
+  const cred = $("ttype").value === "cred", account = $("account").value, category = $("category").value;
+  const lent = !cred && category === "Lentilles", soins = (!cred && category === "Santé") || lent, care = lent ? "Lentilles" : (soins ? $("careType").value : ""), forWho = soins ? careFor : "";
+  const lentNew = lent && !wEditId && !exEditId, quick = !cred && QUICK_CATS.includes(category) && !wEditId && !exEditId, noLab = !cred && category !== "Lentilles" && noLabelCat(category) && !wEditId && !exEditId, pend = $("tpend").checked && !lentNew && !quick && !(soins && !wEditId && !exEditId);
+  const subHas = !cred && category !== "Santé" && category !== "Lentilles" && catSubs(category).length > 0;
+  const shop = subHas ? $("subType").value : "";
+  if (subHas && !shop) return;
+  const typed = $("label").value.trim(), autoLab = soins && care && forWho ? `${care} (${forWho})` : category;
+  const label = (wEditId || exEditId) && typed ? typed : lentNew ? `Lentilles (${forWho})` : shop && shop !== "Autre" ? shop : shop === "Autre" ? (typed || category) : (quick || noLab) ? autoLab : (typed || (soins && care && forWho ? `${care} (${forWho})` : ""));
+  if (soins && (!care || !forWho)) return;
+  if (!label || !(amount > 0) || (!pend && !date) || !account || (!cred && !category)) return;
+  const by = auth.currentUser.email;
+  const isMed = !cred && category === MED, rule = soins ? ruleFor(care, forWho) : null, refRaw = parseFloat($("refAmt").value);
+  const refAmt = soins ? (refRaw || 0) : (refRaw || amount), hasRef = isMed || (soins && refAmt > 0);
+  const refDue = $("refDate").value || addDays(today, 10), mutId = rule ? rule.id : (isMed ? $("refMut").value : ""), extra = soins ? { care, forWho } : (shop ? { sub: shop } : {});
+  const fr = d => new Date(d).toLocaleDateString("fr-FR");
+  const what = cred ? "Crédit" : (lent ? "Dépense · Lentilles → " + forWho : soins ? `Dépense · Santé · ${care} → ${forWho}` : "Dépense · " + category);
+  const ok = await askConfirm((wEditId || exEditId) ? "Enregistrer les modifications ?" : "Confirmer la transaction", [
+    label, what, `Montant : ${eur(amount)}`, `Compte : ${account}`,
+    pend ? "À venir" + (date ? " · prévue le " + fr(date) : "") : "Date : " + fr(date),
+    hasRef ? `Remboursement prévu : +${eur(refAmt)} (ligne ajoutée dans « À venir »)` : ""
+  ], (wEditId || exEditId) ? "Enregistrer" : "Valider");
+  if (!ok) return;
+  const leftBefore = lentNew && rule ? mutUsage(rule, date.slice(0, 4)).left : 0;
+  if (exEditId) {
+    await updateDoc(doc(db, "expenses", exEditId), { label, amount, date, category, account, month: date.slice(0, 7), care: care || "", forWho: forWho || "", sub: shop || "" });
+    closeTx(); return;
+  }
+  if (wEditId) {
+    await updateDoc(doc(db, "pending", wEditId), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: hasRef ? refAmt : 0, refundDue: hasRef ? refDue : "", mutId, ...extra, ...(editDone && cred ? { doneDate: date } : {}) });
+    closeTx(); return;
+  }
+  if (pend) {
+    await addDoc(collection(db, "pending"), { type: cred ? "in" : "pay", label, amount, account, due: date, cat: cred ? "" : category, refund: hasRef ? refAmt : 0, refundDue: hasRef ? refDue : "", mutId, ...extra, done: false, by, created: serverTimestamp() });
+  } else if (cred) {
+    await addDoc(collection(db, "pending"), { type: "in", label, amount, account, due: date, cat: "", done: true, doneDate: date, by, created: serverTimestamp() });
+  } else {
+    await addDoc(collection(db, "expenses"), { label, amount, date, category, account, month: date.slice(0, 7), by, created: serverTimestamp(), ...extra, mutId });
+    if (hasRef) await addRefund(label, refAmt, account, refDue, mutId);
+  }
+  closeTx();
+  if (lentNew && rule) {
+    const after = leftBefore === Infinity ? Infinity : Math.max(0, leftBefore - (hasRef ? refAmt : 0));
+    await showInfo("Lentilles · " + forWho, [
+      hasRef ? `Remboursement prévu : +${eur(refAmt)} (à venir)` : "Aucun remboursement : plafond atteint ou montant nul.",
+      `Il reste ${fmtLeft(after)} de remboursement pour l'année ${date.slice(0, 4)}` + (rule.yearly > 0 ? ` (plafond ${eur0(rule.yearly)})` : "") + "."
+    ]);
+  }
+  if (!pend && date.slice(0, 7) !== $("month").value) { $("month").value = date.slice(0, 7); $("month").onchange(); }
+};
+resetAddForm();
+
+const PEOPLE = ["Julien", "Marie", "Kélia", "Milio"];
+function renderGifts() {
+  const box = $("giftList"); box.innerHTML = "";
+  const gp = giftPlan();
+  const todo = gifts.filter(g => !g.done).reduce((t, g) => t + (g.price || 0), 0);
+  $("giftTotal").textContent = gifts.length ? `${gifts.length} idée(s) · ${eur(todo)} restant à offrir (hors budget)` : "Aucune idée de cadeau pour l'instant.";
+  PEOPLE.forEach(p => {
+    const list = gifts.filter(g => g.person === p).sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.label || "").localeCompare(b.label || ""));
+    if (!list.length) return;
+    const h = document.createElement("div"); h.className = "cathead"; h.innerHTML = "<span></span><small></small>";
+    h.children[0].textContent = p;
+    h.children[1].textContent = eur(list.filter(g => !g.done).reduce((t, g) => t + (g.price || 0), 0));
+    const ul = document.createElement("ul");
+    list.forEach(g => {
+      const li = document.createElement("li"), lb = document.createElement("label");
+      lb.style.cssText = "display:flex;gap:8px;align-items:center;flex:1;min-width:0;cursor:pointer";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!g.done; cb.style.width = "auto";
+      cb.setAttribute("aria-label", "Déjà offert : " + g.label);
+      cb.onchange = () => updateDoc(doc(db, "gifts", g.id), { done: cb.checked });
+      const t = document.createElement("span"); t.textContent = g.label;
+      if (g.done) { t.style.textDecoration = "line-through"; t.style.color = "var(--mute)"; }
+      const w = document.createElement("div"); w.style.minWidth = "0"; w.append(t);
+      const info = giftWhen(g, gp);
+      if (info) { const sm = document.createElement("div"); sm.className = "mute"; sm.style.fontSize = ".8rem"; sm.textContent = info; w.append(sm); }
+      lb.append(cb, w);
+      const r = document.createElement("div"); r.style.cssText = "display:flex;gap:6px;align-items:center";
+      const pr = document.createElement("span"); pr.className = "amt"; pr.textContent = g.price ? eur(g.price) : "—";
+      const ed = document.createElement("button"); ed.className = "ghost"; ed.textContent = "✎"; ed.setAttribute("aria-label", "Modifier " + g.label);
+      ed.onclick = () => { gEditId = g.id; $("gPerson").value = g.person; $("gLabel").value = g.label; $("gPrice").value = g.price || ""; $("btnGift").textContent = "Enregistrer"; $("btnGiftCancel").hidden = false; $("gLabel").focus(); };
+      const del = document.createElement("button"); del.className = "ghost"; del.textContent = "✕"; del.setAttribute("aria-label", "Supprimer " + g.label);
+      del.onclick = () => confirm("Supprimer « " + g.label + " » de la liste ?") && deleteDoc(doc(db, "gifts", g.id));
+      r.append(pr, ed, del); li.append(lb, r); ul.append(li);
+    });
+    box.append(h, ul);
+  });
+}
+function resetGiftForm() { gEditId = null; $("gLabel").value = ""; $("gPrice").value = ""; $("btnGift").textContent = "Ajouter"; $("btnGiftCancel").hidden = true; }
+$("btnGiftCancel").onclick = resetGiftForm;
+$("btnGift").onclick = async () => {
+  const label = $("gLabel").value.trim(), price = parseFloat($("gPrice").value) || 0, person = $("gPerson").value;
+  if (!label) return;
+  if (gEditId) await updateDoc(doc(db, "gifts", gEditId), { person, label, price });
+  else await addDoc(collection(db, "gifts"), { person, label, price, done: false, by: auth.currentUser.email, created: serverTimestamp() });
+  resetGiftForm();
+};
+
+function jmIdx() {
+  for (const k of Object.keys(salaries).sort().reverse()) {
+    const p = salaries[k].p || [], n0 = ((p[0] || {}).n || "").toLowerCase(), n1 = ((p[1] || {}).n || "").toLowerCase();
+    if (n0 === "julien" || n1 === "marie") return { j: 0, m: 1 };
+    if (n0 === "marie" || n1 === "julien") return { j: 1, m: 0 };
+  }
+  return { j: 0, m: 1 };
+}
+function acctRem(m) {
+  const a = salPair(m); if (!a) return null;
+  const tot = a.Julien + a.Marie;
+  if (!(tot > 0)) return null;
+  const isCom = x => x.account !== "Julien" && x.account !== "Marie";
+  const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+  const sh = contribShares(m), common = sh ? sh.Julien + sh.Marie : commonNeed(m).total;
+  const out = {};
+  ["Julien", "Marie"].forEach(p => {
+    const c = sh ? sh[p] : common * a[p] / tot;
+    const pf = fixed.filter(f => f.account === p).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+    const pe = expenses.filter(e => e.account === p).reduce((t, e) => t + e.amount, 0);
+    out[p] = { c, sal: a[p], pf, pe, left: a[p] - c - pf - pe - pendCost(m, p) + incAcct(p, m) };
+  });
+  const expC = expenses.filter(isCom).reduce((t, e) => t + e.amount, 0);
+  const incC = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && isCom(w)).reduce((t, w) => t + (w.amount || 0), 0);
+  out.Commun = { c: common, fxC, expC, incC, left: common + incAcct("Commun", m) - fxC - expC + incC };
+  return out;
+}
+function renderAcct(m) {
+  const box = $("acctBox"); box.innerHTML = "";
+  const r = acctRem(m) || {};
+  [["Julien", "bleu"], ["Marie", "rose"], ["Commun", "blanc"]].forEach(([p, col]) => {
+    const d = document.createElement("div");
+    d.style.cssText = `flex:1 1 30%;min-width:0;border-radius:10px;padding:10px;background:var(--${col});border:1px solid var(--line);border-left:4px solid var(--${col}-b)`;
+    d.innerHTML = "<div class='mute'></div><b style='display:block;font-size:1.3rem;font-variant-numeric:tabular-nums'></b><div class='mute' style='font-size:.75rem'></div>";
+    d.children[0].textContent = "Compte " + p + " ›"; d.style.cursor = "pointer"; d.tabIndex = 0; d.setAttribute("role", "button"); d.onclick = () => openAcct(p); d.onkeydown = e => { if (e.key === "Enter") openAcct(p); };
+    const bal = acctBalance(p, m), x = r[p];
+    d.children[1].textContent = "💰 " + eur(bal);
+    if (bal < 0) d.children[1].style.color = "var(--bad)";
+    d.children[2].textContent = "Argent sur le compte" + (x ? " · reste du mois " + eur0(x.left) + (p === "Commun" ? "" : " · part commune " + eur0(x.c)) : "");
+    box.append(d);
+  });
+}
+
+const PIE_COL = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"];
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const accMatch = (x, name) => name === "Commun" ? (x.account !== "Julien" && x.account !== "Marie") : x.account === name;
+
+function catTotals(x) {
+  const c = {};
+  histExp.filter(e => e.month === x).forEach(e => { const k = e.category || "Autre"; c[k] = (c[k] || 0) + e.amount; });
+  fixed.forEach(f => { const p = priceAt(f, x) || 0; if (p) { const k = f.category || "Autre"; c[k] = (c[k] || 0) + p; } });
+  return c;
+}
+function acctMonthCats(name, x) {
+  const c = {};
+  histExp.filter(e => e.month === x && accMatch(e, name)).forEach(e => { const k = e.category || "Autre"; c[k] = (c[k] || 0) + e.amount; });
+  fixed.filter(f => accMatch(f, name)).forEach(f => { const p = priceAt(f, x) || 0; if (p) { const k = f.category || "Autre"; c[k] = (c[k] || 0) + p; } });
+  return c;
+}
+function pieHtml(cats) {
+  let en = Object.entries(cats).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+  if (en.length > 9) { const rest = en.slice(8).reduce((t, e) => t + e[1], 0); en = en.slice(0, 8).concat([["Autres", rest]]); }
+  const tot = en.reduce((t, e) => t + e[1], 0);
+  if (!(tot > 0)) return '<p class="mute">Aucune dépense sur cette période.</p>';
+  const C = 80, R = 74; let ang = -Math.PI / 2, svg = "", leg = "";
+  en.forEach(([l, v], i) => {
+    const col = PIE_COL[i % PIE_COL.length], a = v / tot * 2 * Math.PI;
+    if (en.length === 1) svg += `<circle cx="${C}" cy="${C}" r="${R}" fill="${col}"><title>${esc(l)} : ${eur0(v)}</title></circle>`;
+    else {
+      const x1 = C + R * Math.cos(ang), y1 = C + R * Math.sin(ang), x2 = C + R * Math.cos(ang + a), y2 = C + R * Math.sin(ang + a);
+      svg += `<path d="M${C} ${C} L${x1} ${y1} A${R} ${R} 0 ${a > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z" fill="${col}"><title>${esc(l)} : ${eur0(v)}</title></path>`;
+    }
+    ang += a;
+    leg += `<div class="cat" style="font-size:.9rem"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col};margin-right:6px"></i>${esc(l)}</span><b style="font-weight:400">${eur0(v)} · ${Math.round(v / tot * 100)} %</b></div>`;
+  });
+  svg += `<circle cx="${C}" cy="${C}" r="40" fill="var(--card)"/><text x="${C}" y="${C + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">${eur0(tot)}</text>`;
+  return `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><svg viewBox="0 0 160 160" width="170" height="170" role="img" aria-label="Camembert des dépenses par catégorie">${svg}</svg><div style="flex:1;min-width:190px">${leg}</div></div>`;
+}
+function barsHtml(items, color) {
+  const mx = Math.max(...items.map(i => i[1]), 1), W = 340, H = 150, L = 6, B = 24, T = 18, bw = (W - 2 * L) / items.length;
+  let g = "";
+  items.forEach(([lab, v], i) => {
+    const h = v / mx * (H - B - T), x = L + i * bw + bw * 0.15, w = bw * 0.7;
+    g += `<rect x="${x}" y="${H - B - h}" width="${w}" height="${Math.max(h, v > 0 ? 2 : 0)}" rx="3" fill="${color}"><title>${esc(lab)} : ${eur0(v)}</title></rect>`;
+    g += `<text x="${x + w / 2}" y="${H - B - h - 4}" text-anchor="middle" font-size="10" fill="var(--ink)">${v > 0 ? eur0(v) : ""}</text>`;
+    g += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--mute)">${esc(lab)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Dépenses des 6 derniers mois">${g}</svg>`;
+}
+function openAcct(name) {
+  acctName = name;
+  document.querySelectorAll("nav button").forEach(x => x.classList.remove("on"));
+  show("tabAcct"); renderAcctPage(); window.scrollTo(0, 0);
+}
+$("btnAcctBack").onclick = () => document.querySelector('nav [data-t="month"]').click();
+
+let mutItems = [], mEditId = null;
+function mutUsage(it, year) {
+  let got = 0, pend = 0;
+  waits.filter(w => w.type === "in" && w.mutId === it.id).forEach(w => {
+    if (w.done) { if ((w.doneDate || "").slice(0, 4) === year) got += w.amount || 0; }
+    else if ((w.due || today).slice(0, 4) === year) pend += w.amount || 0;
+  });
+  return { got, pend, left: it.yearly > 0 ? Math.max(0, it.yearly - got - pend) : Infinity };
+}
+function fillRefMut() {
+  const sel = $("refMut"), acc = $("account").value, cur = sel.value, year = ($("date").value || today).slice(0, 4);
+  const items = mutItems.filter(i => i.person === acc);
+  sel.hidden = !items.length;
+  sel.innerHTML = '<option value="">Poste de mutuelle (facultatif)</option>' + items.map(i => `<option value="${esc(i.id)}">${esc(i.label)} (reste possible ${fmtLeft(mutUsage(i, year).left)})</option>`).join("");
+  if (items.some(i => i.id === cur)) sel.value = cur;
+}
+$("refMut").onchange = () => {
+  const it = mutItems.find(i => i.id === $("refMut").value); if (!it) return;
+  const left = mutUsage(it, ($("date").value || today).slice(0, 4)).left, amt = parseFloat($("amount").value) || left;
+  $("refAmt").value = Math.round(Math.max(0, Math.min(it.unit > 0 ? it.unit : amt, left)) * 100) / 100;
+};
+function openTxPreset(person, itemId) {
+  const it = mutItems.find(i => i.id === itemId); if (!it) return;
+  resetAddForm();
+  $("ttype").value = "exp"; $("category").value = (it.label || "").toLowerCase() === "lentilles" ? "Lentilles" : "Santé"; careFor = it.person; txUpdate();
+  $("careType").value = it.label; txUpdate();
+  $("account").value = person; txUpdate();
+  $("txDlg").showModal ? $("txDlg").showModal() : $("txDlg").setAttribute("open", "");
+}
+function renderMut() {
+  const year = $("month").value.slice(0, 4); $("acMutYear").textContent = year;
+  const list = $("acMutList"); list.innerHTML = "";
+  const items = mutItems.slice().sort((a, b) => BENEF.indexOf(a.person) - BENEF.indexOf(b.person) || (a.label || "").localeCompare(b.label || ""));
+  if (!items.length) list.innerHTML = '<div class="mute">Aucune règle. Ajoutez par exemple « Julien · Ostéopathe : max 30 € par séance » ou « Marie · Pharmacie : 65 % ».</div>';
+  items.forEach(it => {
+    const u = mutUsage(it, year), used = u.got + u.pend, cap = it.yearly > 0, over = cap && used > it.yearly + 0.001;
+    const box = document.createElement("div"); box.style.cssText = "border-top:1px solid var(--line);padding:10px 0";
+    box.innerHTML = "<div class='cat' style='padding:0'><b></b><b style='font-weight:400'></b></div><div class='mute' style='font-size:.85rem'></div><div class='bar' style='display:flex'><i></i><i></i></div><div class='mute' style='font-size:.85rem'></div><div class='mute' style='font-size:.85rem'></div><div class='row' style='margin-top:8px'></div>";
+    box.children[0].children[0].textContent = `${it.label} · ${it.person}`;
+    box.children[0].children[1].textContent = cap ? `${eur0(used)} / ${eur0(it.yearly)}` : eur0(used);
+    box.children[1].textContent = "Règle : " + ruleText(it);
+    if (cap) {
+      const [g, p] = box.children[2].children, gw = Math.min(100, u.got / it.yearly * 100);
+      g.style.width = gw + "%"; g.style.background = over ? "var(--bad)" : "var(--ok)";
+      p.style.width = Math.max(0, Math.min(100 - gw, u.pend / it.yearly * 100)) + "%"; p.style.background = "var(--warn)";
+    } else box.children[2].hidden = true;
+    box.children[3].textContent = `Remboursé : ${eur0(u.got)} · en cours : ${eur0(u.pend)} · reste possible : ${fmtLeft(u.left)}`;
+    if (it.unit > 0 && cap) { const max = Math.floor(it.yearly / it.unit + 1e-9); box.children[4].textContent = `Séances : ${Math.min(max, Math.round(used / it.unit))} / ${max}`; } else box.children[4].hidden = true;
+    const row = box.children[5], btn = (t, f, ghost) => { const b = document.createElement("button"); b.textContent = t; if (ghost) b.className = "ghost"; b.onclick = f; row.append(b); };
+    btn("＋ Dépense", () => openTxPreset(it.person === "Julien" || it.person === "Marie" ? it.person : "", it.id));
+    btn("Modifier", () => { mEditId = it.id; $("mWho").value = it.person; $("mLabel").value = it.label; $("mRate").value = it.rate || ""; $("mUnit").value = it.unit || ""; $("mYear").value = it.yearly || ""; $("mBtn").textContent = "Enregistrer"; $("mCancel").hidden = false; $("acMut").querySelector("details").open = true; $("mLabel").focus(); }, true);
+    btn("Supprimer", () => confirm("Supprimer la règle « " + it.label + " · " + it.person + " » ? Les remboursements déjà saisis restent dans vos transactions.") && deleteDoc(doc(db, "mutuelle", it.id)), true);
+    list.append(box);
+  });
+}
+function resetMutForm() { mEditId = null; $("mLabel").value = ""; $("mRate").value = ""; $("mUnit").value = ""; $("mYear").value = ""; $("mBtn").textContent = "Ajouter"; $("mCancel").hidden = true; }
+$("mCancel").onclick = resetMutForm;
+$("mBtn").onclick = async () => {
+  const label = $("mLabel").value.trim(), person = $("mWho").value;
+  const yearly = parseFloat($("mYear").value) || 0, unit = parseFloat($("mUnit").value) || 0, rate = Math.min(100, parseFloat($("mRate").value) || 0);
+  if (!label || !person || !(yearly > 0 || unit > 0 || rate > 0)) return;
+  const data = { person, label, yearly, unit, rate };
+  if (mEditId) await updateDoc(doc(db, "mutuelle", mEditId), data);
+  else await addDoc(collection(db, "mutuelle"), { ...data, by: auth.currentUser.email, created: serverTimestamp() });
+  resetMutForm();
+};
+
+function renderSalChart(name, m, col) {
+  const yr = m.slice(0, 4), items = []; let total = 0, est = 0, n = 0;
+  for (let k = 1; k <= 12; k++) {
+    const x = yr + "-" + String(k).padStart(2, "0"), d = salaries[x];
+    const si = salInfo(x), sp = si, real = si ? (name === "Commun" ? !si.estJ && !si.estM : (name === "Julien" ? !si.estJ : !si.estM)) : false;
+    const v = sp ? (name === "Commun" ? sp.Julien + sp.Marie : sp[name]) : 0;
+    const lab = new Date(x + "-01").toLocaleDateString("fr-FR", { month: "short" }).replace(".", "");
+    items.push([lab, v, !real && v > 0]);
+    if (v > 0) { total += v; n++; if (!real) est += v; }
+  }
+  $("acSalTitle").textContent = (name === "Commun" ? "Salaires du foyer (Julien + Marie)" : "Salaires de " + name) + " par mois · " + yr;
+  const mx = Math.max(...items.map(i => i[1]), 1), W = 360, H = 170, L = 6, B = 24, T = 20, bw = (W - 2 * L) / 12;
+  const short = v => v <= 0 ? "" : v >= 1000 ? (v / 1000).toFixed(1).replace(".", ",") + "k" : String(Math.round(v));
+  let g = "";
+  items.forEach(([lab, v, isEst], i) => {
+    const h = v / mx * (H - B - T), x = L + i * bw + bw * 0.12, w = bw * 0.76, c = `var(--${col}-b)`;
+    g += `<rect x="${x}" y="${H - B - h}" width="${w}" height="${Math.max(h, v > 0 ? 2 : 0)}" rx="3" fill="${c}" fill-opacity="${isEst ? 0.3 : 1}" ${isEst ? `stroke="${c}" stroke-dasharray="3 2"` : ""}><title>${esc(lab)} ${yr} : ${eur0(v)}${isEst ? " (estimé)" : ""}</title></rect>`;
+    g += `<text x="${x + w / 2}" y="${H - B - h - 4}" text-anchor="middle" font-size="9" fill="var(--ink)">${short(v)}</text>`;
+    g += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="9" fill="var(--mute)">${esc(lab)}</text>`;
+  });
+  $("acSalChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Salaires par mois">${g}</svg>`;
+  $("acSalNote").textContent = n ? `Total ${yr} : ${eur0(total)}${est > 0 ? " (dont " + eur0(est) + " estimé)" : ""} · moyenne : ${eur0(total / n)} par mois. Barres pleines : salaires saisis, barres claires : estimation.` : "Aucun salaire enregistré pour cette année. Saisissez-les dans l'onglet Répartition.";
+}
+
+function monthBars(list, color, el, title) {
+  const yr = $("month").value.slice(0, 4), cur = today.slice(0, 7), items = []; let total = 0;
+  for (let k = 1; k <= 12; k++) {
+    const x = yr + "-" + String(k).padStart(2, "0"), v = list.reduce((t, f) => t + (priceAt(f, x) || 0), 0);
+    items.push([new Date(x + "-01").toLocaleDateString("fr-FR", { month: "short" }).replace(".", ""), v, x === cur]);
+    total += v;
+  }
+  const mx = Math.max(...items.map(i => i[1]), 1), W = 360, H = 170, L = 6, B = 24, T = 20, bw = (W - 2 * L) / 12;
+  const short = v => v <= 0 ? "" : v >= 1000 ? (v / 1000).toFixed(1).replace(".", ",") + "k" : String(Math.round(v));
+  let g = "";
+  items.forEach(([lab, v, isCur], i) => {
+    const h = v / mx * (H - B - T), x = L + i * bw + bw * 0.12, w = bw * 0.76;
+    g += `<rect x="${x}" y="${H - B - h}" width="${w}" height="${Math.max(h, v > 0 ? 2 : 0)}" rx="3" fill="${color}" ${isCur ? 'stroke="var(--ink)" stroke-width="1.5"' : ""}><title>${esc(lab)} ${yr} : ${eur0(v)}</title></rect>`;
+    g += `<text x="${x + w / 2}" y="${H - B - h - 4}" text-anchor="middle" font-size="9" fill="var(--ink)">${short(v)}</text>`;
+    g += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="9" fill="${isCur ? "var(--ink)" : "var(--mute)"}" ${isCur ? 'font-weight="700"' : ""}>${esc(lab)}</text>`;
+  });
+  el.innerHTML = `<div class="mute" style="font-size:.85rem">${esc(title)} · ${yr}</div><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(title)}">${g}</svg><div class="mute" style="font-size:.85rem">Total ${yr} : ${eur0(total)} · moyenne : ${eur0(total / 12)} par mois. Le mois en cours est entouré.</div>`;
+}
+function renderFixBars() {
+  monthBars(fixed, "var(--bad)", $("fixBars"), "Dépenses fixes par mois");
+  monthBars(incomes, "var(--ok)", $("incBars"), "Revenus fixes par mois");
+}
+
+function renderAcctPage() {
+  const name = acctName, m = $("month").value, r = acctRem(m), info = r && r[name];
+  const col = { Julien: "bleu", Marie: "rose", Commun: "blanc" }[name];
+  $("acSum").style.cssText = `background:var(--${col});border-left:4px solid var(--${col}-b)`;
+  $("acTitle").textContent = "Compte " + name + " · " + monthLabel(m);
+  $("acLeft").textContent = info ? eur0(info.left) : "—";
+  $("acLeft").style.color = info && info.left < 0 ? "var(--bad)" : "var(--ink)";
+  $("acInfo").innerHTML = "";
+  const pc = pendCost(m, name), inc = incAcct(name, m);
+  let rows = [];
+  if (info && name === "Commun") rows = [["+ Parts versées par Julien et Marie", info.c], ["+ Revenus fixes", inc], ["− Dépenses fixes", info.fxC], ["− Dépenses du mois", info.expC], ["+ Crédits reçus", info.incC]];
+  else if (info) rows = [["+ Salaire du mois", info.sal], ["+ Revenus fixes", inc], ["− Part du compte commun", info.c], ["− Dépenses fixes", info.pf], ["− Dépenses du mois", info.pe], pc > 0 ? ["− Paiements à venir", pc] : ["+ Crédits attendus ou reçus", -pc]];
+  else $("acInfo").textContent = "Saisissez les salaires du mois pour voir le détail.";
+  rows.forEach(([t, v], i) => {
+    if (i > 1 && !(v > 0)) return;
+    const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
+    d.children[0].textContent = t; d.children[1].textContent = eur0(v);
+    d.children[1].style.color = t.startsWith("−") ? "var(--bad)" : "var(--ok)"; d.children[1].style.fontWeight = 400;
+    $("acInfo").append(d);
+  });
+  { const bal = acctBalance(name, m); $("acReal").textContent = eur(bal); $("acReal").style.color = bal < 0 ? "var(--bad)" : "var(--ink)"; }
+  $("acPie1").innerHTML = pieHtml(acctMonthCats(name, m));
+  const all = {}, bars = [];
+  for (let k = -11; k <= 0; k++) {
+    const x = nmo(m, k), c = acctMonthCats(name, x);
+    Object.entries(c).forEach(([key, v]) => all[key] = (all[key] || 0) + v);
+    if (k >= -5) bars.push([new Date(x + "-01").toLocaleDateString("fr-FR", { month: "short" }), Object.values(c).reduce((t, v) => t + v, 0)]);
+  }
+  $("acPie2").innerHTML = pieHtml(all);
+  $("acBars").innerHTML = barsHtml(bars, `var(--${col}-b)`);
+  renderSalChart(name, m, col);
+  const credits = waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === m && accMatch(w, name));
+  const list = [...expenses.filter(e => accMatch(e, name)).map(e => ({ k: "e", x: e, date: e.date || "" })), ...credits.map(w => ({ k: "c", x: w, date: w.doneDate })),
+    ...transfers.filter(t => t.month === m && (name === "Commun" || t.person === name)).map(t => ({ k: name === "Commun" ? "c" : "e", x: { label: name === "Commun" ? "Versement de " + t.person : "Versement vers le compte commun", amount: t.amount, meta: "Versement", tid: t.id }, date: t.date }))].sort((a, b) => b.date.localeCompare(a.date));
+  $("acEmpty").hidden = list.length > 0; $("acList").innerHTML = "";
+  list.forEach(({ k, x, date }) => {
+    const li = document.createElement("li"), l = document.createElement("div"), a = document.createElement("span");
+    l.innerHTML = "<div></div><div class='mute'></div>";
+    l.children[0].textContent = x.label;
+    l.children[1].textContent = new Date(date).toLocaleDateString("fr-FR") + " · " + (x.meta || (k === "e" ? x.category : "Crédit"));
+    a.className = "amt"; a.textContent = (k === "e" ? "− " : "+ ") + eur(x.amount || 0);
+    a.style.cssText = "font-weight:700;color:" + (k === "e" ? "var(--bad)" : "var(--ok)");
+    if (x.tid) {
+      const u = document.createElement("button"); u.className = "ghost"; u.textContent = "Annuler"; u.onclick = () => confirm("Annuler ce versement ?") && deleteDoc(doc(db, "transfers", x.tid));
+      const w = document.createElement("span"); w.style.cssText = "display:flex;gap:8px;align-items:center"; w.append(a, u); li.append(l, w);
+    } else li.append(l, a);
+    $("acList").append(li);
+  });
+}
+
+function monthParts(x) {
+  const si = salInfo(x);
+  const sal = (si ? si.Julien + si.Marie : 0) + incFixed(x);
+  if (!(sal > 0)) return null;
+  const sum = l => l.reduce((t, e) => t + e.amount, 0);
+  const E = histExp.filter(e => e.month === x), S = sum(E);
+  const pl = planFor(x), pd = pendSum(x, "all");
+  let esT = 0, esA = 0;
+  estEntries().forEach(en => { const A = sum(E.filter(z => !z.planId && inZone(en.zone, en.category, z))); esT += Math.max(estAmt(en), A); esA += A; });
+  return { sal, fixed: fixed.reduce((t, f) => t + (priceAt(f, x) || 0), 0), jow: 0, plan: pl.total, est: esT, pend: pd.pay - pd.inc, misc: S - pl.actual - esA };
+}
+function renderYear(m) {
+  const box = $("yearBox"), yr = m.slice(0, 4);
+  const T = { sal: 0, fixed: 0, jow: 0, plan: 0, est: 0, pend: 0, misc: 0 }; let n = 0, skipped = 0;
+  for (let k = 1; k <= 12; k++) {
+    const p = monthParts(yr + "-" + String(k).padStart(2, "0"));
+    if (!p) { skipped++; continue; }
+    Object.keys(T).forEach(key => T[key] += p[key]); n++;
+  }
+  if (!n) { box.hidden = true; return; }
+  const tot = T.sal - (T.fixed + T.jow + T.plan + T.est + T.pend + T.misc);
+  box.hidden = false;
+  $("yearLab").textContent = "Reste final sur le total des comptes · fin décembre " + yr;
+  $("yearVal").textContent = eur0(tot);
+  $("yearVal").style.color = tot < 0 ? "var(--bad)" : "var(--ok)";
+  const det = $("yearDet"); det.innerHTML = "";
+  const rows = [[`+ Salaires et revenus fixes (${n} mois, moyenne si non saisis)`, T.sal], ["− Dépenses fixes", T.fixed], ["− Budget alimentaire Jow", T.jow], ["− Dépenses prévues", T.plan], ["− Dépenses estimées", T.est], [T.pend < 0 ? "+ Crédits à venir" : "− Paiements à venir", Math.abs(T.pend)], ["− Courses et autres dépenses saisies", T.misc]];
+  rows.forEach(([t, v], i) => {
+    if (i > 1 && !(v > 0)) return;
+    const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>";
+    d.children[0].textContent = t; d.children[1].textContent = eur0(v);
+    d.children[1].style.cssText = "font-weight:400;color:" + (t.startsWith("+") ? "var(--ok)" : "var(--bad)");
+    det.append(d);
+  });
+  const note = document.createElement("div"); note.className = "mute"; note.style.fontSize = ".75rem";
+  note.textContent = "Année complète (janvier à décembre), identique quel que soit le mois affiché." + (skipped ? ` ${skipped} mois sans salaire connu ne sont pas comptés.` : "") + " Les courses et dépenses non prévues des mois à venir ne sont pas comptées.";
+  det.append(note);
+}
+
+function updateMonthTitle() {
+  const m = $("month").value;
+  $("monthBig").textContent = m ? new Date(m + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) : "";
+}
+const shiftMonth = k => { const m = $("month").value; if (!m) return; $("month").value = nmo(m, k); $("month").onchange(); };
+$("mPrev").onclick = () => shiftMonth(-1);
+$("mNext").onclick = () => shiftMonth(1);
+
+let settles = [], transfers = [], topDirtyJ = false, topDirtyM = false, contribDraft = {}, adjustments = [], reconDraft = {}, profiles = null, me = "", transfersLoaded = false, fixedLoaded = false, popupsShown = false;
+let estLoaded = false, flags = null, seeding = false;
+function maybeSeedJow() {
+  if (!estLoaded || flags === null || flags.jowEstimate || seeding) return;
+  seeding = true;
+  const ops = [];
+  if (!estEntries().some(e => e.category === "Jow")) ops.push(setDoc(doc(db, "estimates", "Commun|Jow"), { category: "Jow", zone: "Commun", mode: "manual", amount: legacyJowBudget(today.slice(0, 7)) }));
+  ops.push(setDoc(doc(db, "settings", "flags"), { jowEstimate: true }, { merge: true }));
+  Promise.all(ops).catch(e => { seeding = false; console.error(e); });
+}
+function salInfo(x) {
+  const d = salaries[x], ix = jmIdx(), av = salAvg(x), got = i => ((d && d.p && d.p[i]) || {}).a || 0;
+  const rj = got(ix.j), rm = got(ix.m), J = rj > 0 ? rj : (av ? av.a[ix.j] || 0 : 0), M = rm > 0 ? rm : (av ? av.a[ix.m] || 0 : 0);
+  if (!(J > 0 || M > 0)) return null;
+  return { Julien: J, Marie: M, estJ: !(rj > 0) && J > 0, estM: !(rm > 0) && M > 0 };
+}
+function salPair(m) { const i = salInfo(m); return i ? { Julien: i.Julien, Marie: i.Marie } : null; }
+const isSharedBudgetExp = e => !e.planId && !!commonEntry(e.category) && !ownersOf(e.category).includes(e.account);
+function commonNeed(m) {
+  const isCom = x => x.account !== "Julien" && x.account !== "Marie";
+  const fxC = fixed.filter(isCom).reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+  const pays = waits.filter(w => w.type === "pay" && !w.done && isCom(w) && wMonth(w) === m);
+  const ins = waits.filter(w => w.type === "in" && isCom(w) && wMonth(w) === m);
+  const incF = incAcct("Commun", m), payT = pays.reduce((t, w) => t + (w.amount || 0), 0), inT = ins.reduce((t, w) => t + (w.amount || 0), 0);
+  const list = histExp.filter(e => e.month === m && isSharedBudgetExp(e)), sum = l => l.reduce((t, e) => t + e.amount, 0), byCat = {};
+  list.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
+  const shared = Object.entries(byCat).map(([cat, amount]) => ({ cat, amount })).sort((x, y) => y.amount - x.amount), sharedT = sum(list);
+  const direct = { Julien: sum(list.filter(e => e.account === "Julien")), Marie: sum(list.filter(e => e.account === "Marie")) };
+  return { fxC, pays, ins, incF, payT, inT, shared, sharedT, direct, total: Math.max(0, fxC + payT + sharedT - inT - incF) };
+}
+const roundUp100 = v => v > 0.004 ? Math.ceil(Math.round(v * 100) / 10000 - 1e-9) * 100 : 0;
+function contribShares(m) {
+  const sp = salPair(m); if (!sp) return null;
+  const tot = sp.Julien + sp.Marie; if (!(tot > 0)) return null;
+  const cn = commonNeed(m), S = cn.total, cJ = Math.round(S * sp.Julien / tot * 100) / 100, cM = Math.round((S - cJ) * 100) / 100;
+  const nJ = Math.max(0, Math.round((cJ - cn.direct.Julien) * 100) / 100), nM = Math.max(0, Math.round((cM - cn.direct.Marie) * 100) / 100);
+  return { Julien: roundUp100(nJ), Marie: roundUp100(nM), rawJ: nJ, rawM: nM, need: S, direct: cn.direct, pct: { Julien: sp.Julien / tot, Marie: sp.Marie / tot } };
+}
+function fillTopSal() {
+  const m = $("month").value, d = salaries[m], ix = jmIdx(), si = salInfo(m);
+  const got = i => ((d && d.p && d.p[i]) || {}).a || 0;
+  [["J", "Julien", ix.j], ["M", "Marie", ix.m]].forEach(([k, name, i]) => {
+    const saved = got(i), est = si ? si[name] : 0;
+    if (!(k === "J" ? topDirtyJ : topDirtyM)) $("topSal" + k).value = saved > 0 ? saved : "";
+    $("topSal" + k).placeholder = saved > 0 ? "Salaire net (€)" : (est > 0 ? "Moyenne " + eur0(est) : "Salaire net (€)");
+    $("topSt" + k).textContent = saved > 0 ? "· ✓ enregistré" : (est > 0 ? "· moyenne utilisée" : "· à saisir");
+    $("topSt" + k).style.color = saved > 0 ? "var(--ok)" : "var(--mute)";
+  });
+  const showJ = got(ix.j) <= 0, showM = got(ix.m) <= 0, upto = m <= today.slice(0, 7);
+  $("topRowJ").hidden = !showJ; $("topRowM").hidden = !showM; $("salBox").hidden = !upto || !(showJ || showM);
+}
+$("topSalJ").oninput = () => { topDirtyJ = true; }; $("topSalM").oninput = () => { topDirtyM = true; };
+async function saveSalValue(name, val, m) {
+  if (!m || !(val > 0)) return;
+  const ix = jmIdx(), d = salaries[m], cur = (d && d.p) || [];
+  const p = [0, 1].map(i => cur[i] && cur[i].a > 0 ? { n: cur[i].n || (i === ix.j ? "Julien" : "Marie"), a: cur[i].a } : { n: i === ix.j ? "Julien" : "Marie", a: 0 });
+  p[name === "Julien" ? ix.j : ix.m] = { n: name, a: val };
+  salaries[m] = { p };
+  await setDoc(doc(db, "salaries", m), { p });
+}
+async function saveSal(name) {
+  const val = parseFloat($(name === "Julien" ? "topSalJ" : "topSalM").value) || 0;
+  await saveSalValue(name, val, $("month").value);
+  if (val > 0) { if (name === "Julien") topDirtyJ = false; else topDirtyM = false; }
+}
+$("topBtnJ").onclick = () => saveSal("Julien"); $("topBtnM").onclick = () => saveSal("Marie");
+function renderContrib(m) {
+  if (!m) return;
+  const cn = commonNeed(m), sh = contribShares(m), fr = d => new Date(d).toLocaleDateString("fr-FR");
+  const rounded = sh ? sh.Julien + sh.Marie : cn.total;
+  $("cbTotal").textContent = eur(rounded);
+  const det = $("cbDet"); det.innerHTML = "";
+  const line = (t, v, neg) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:1px 0;font-size:.85rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; det.append(d); };
+  line("Dépenses fixes (compte commun)", cn.fxC);
+  cn.shared.forEach(g => line("Budget partagé · " + g.cat, g.amount));
+  cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
+  cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
+  if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
+  if (sh && cn.direct.Julien + cn.direct.Marie > 0.004) line("Déjà payé directement (Julien + Marie)", cn.direct.Julien + cn.direct.Marie, true);
+  if (sh && rounded - (sh.rawJ + sh.rawM) > 0.004) line("Arrondi à la centaine supérieure", rounded - (sh.rawJ + sh.rawM));
+  const box = $("cbPeople"); box.innerHTML = ""; let pending = 0; $("contribBox").hidden = m > today.slice(0, 7);
+  if (!sh) { box.innerHTML = '<div class="mute" style="font-size:.85rem">Saisissez les salaires du mois pour calculer la part de chacun.</div>'; return; }
+  ["Julien", "Marie"].forEach(p => {
+    const required = sh[p], mine = transfers.filter(t => t.month === m && t.person === p).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const done = mine.reduce((t, x) => t + x.amount, 0), rest = Math.round((required - done) * 100) / 100;
+    if (!(rest > 0.5)) return; pending++;
+    const row = document.createElement("div"); row.className = "cat"; row.style.cssText = "padding:6px 0;border-top:1px solid var(--line);align-items:center;gap:8px;flex-wrap:wrap";
+    const left = document.createElement("span"); left.innerHTML = "<b></b> <small class='mute'></small>";
+    left.children[0].textContent = p; left.children[1].textContent = Math.round(sh.pct[p] * 100) + " % · à verser " + eur0(required) + (sh.direct[p] > 0 ? " · déjà payé en direct " + eur0(sh.direct[p]) : "") + (done > 0 ? " · déjà versé " + eur0(done) : "");
+    const right = document.createElement("span"); right.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end";
+    if (rest > 0.5) {
+      const inp = document.createElement("input"); inp.type = "number"; inp.step = "0.01"; inp.min = "0"; inp.style.width = "110px";
+      inp.value = contribDraft[p] !== undefined ? contribDraft[p] : rest; inp.setAttribute("aria-label", "Montant versé par " + p);
+      inp.oninput = () => { contribDraft[p] = inp.value; };
+      const b = document.createElement("button"); b.textContent = "✓ Valider"; b.setAttribute("aria-label", "Valider le versement de " + p);
+      b.onclick = async () => {
+        const val = parseFloat(inp.value);
+        if (!(val > 0)) return;
+        const ok = await askConfirm("Valider le versement", [`${p} → compte commun`, `Montant : ${eur(val)}`, `Date : ${fr(today)}`, "Il sera ajouté aux transactions du compte commun."], "Valider");
+        if (!ok) return;
+        delete contribDraft[p];
+        await addDoc(collection(db, "transfers"), { month: m, person: p, amount: Math.round(val * 100) / 100, date: today, by: auth.currentUser.email, created: serverTimestamp() });
+      };
+      right.append(inp, b);
+    } else if (required > 0.5 || done > 0) {
+      const ok = document.createElement("span"); ok.style.cssText = "color:var(--ok);font-weight:700"; ok.textContent = "✓ Versé"; right.append(ok);
+    } else { const z = document.createElement("span"); z.className = "mute"; z.textContent = "rien à verser"; right.append(z); }
+    if (mine.length) {
+      const u = document.createElement("button"); u.className = "ghost"; u.textContent = "↺"; u.setAttribute("aria-label", "Annuler le dernier versement de " + p);
+      const last = mine[mine.length - 1];
+      u.onclick = () => confirm("Annuler le versement de " + eur(last.amount) + " de " + p + " (" + fr(last.date) + ") ?") && deleteDoc(doc(db, "transfers", last.id));
+      right.append(u);
+    }
+    row.append(left, right); box.append(row);
+  });
+  if (!pending) $("contribBox").hidden = true;
+}
+
+const emailKey = e => (e || "").toLowerCase().replace(/[.#$\[\]\/]/g, "_");
+const snoozeKey = (step, m, p) => "later_" + step + "_" + m + "_" + p;
+const isSnoozed = k => { try { return localStorage.getItem(k) === "1"; } catch (e) { return false; } };
+const snooze = k => { try { localStorage.setItem(k, "1"); } catch (e) {} };
+const updateMeBtn = () => { $("btnMe").textContent = "Profil : " + (me || "à choisir"); };
+$("btnMe").onclick = () => askWho();
+function askWho() {
+  return new Promise(res => {
+    const dlg = $("meDlg");
+    const pick = async p => {
+      const k = emailKey(auth.currentUser.email);
+      await setDoc(doc(db, "settings", "profiles"), { [k]: p }, { merge: true });
+      profiles = { ...(profiles || {}), [k]: p }; me = p; updateMeBtn(); dlg.close(); res(p);
+    };
+    $("meJ").onclick = () => pick("Julien"); $("meM").onclick = () => pick("Marie");
+    dlg.oncancel = () => res("");
+    dlgShow(dlg);
+  });
+}
+function askSalary(person, month) {
+  return new Promise(res => {
+    const dlg = $("salDlg"), sp = salPair(month);
+    $("salDlgTitle").textContent = "Salaire de " + monthLabel(month) + " · " + person;
+    $("salDlgAmt").value = ""; $("salDlgAmt").placeholder = sp && sp[person] ? "Moyenne " + eur0(sp[person]) : "Salaire net (€)";
+    const done = v => { dlg.close(); res(v); };
+    $("salDlgOk").onclick = () => { const v = parseFloat($("salDlgAmt").value); if (!(v > 0)) { $("salDlgAmt").focus(); return; } done(v); };
+    $("salDlgAmt").onkeydown = e => { if (e.key === "Enter") $("salDlgOk").click(); };
+    $("salDlgLater").onclick = () => done(null);
+    dlg.oncancel = () => res(null);
+    dlgShow(dlg); $("salDlgAmt").focus();
+  });
+}
+function askContrib(person, month, sh, cn, rest) {
+  return new Promise(res => {
+    const dlg = $("cbDlg"), det = $("cbDlgDet"), fr = d => new Date(d).toLocaleDateString("fr-FR");
+    $("cbDlgTitle").textContent = person + " · à verser sur le compte commun";
+    det.innerHTML = "";
+    const line = (t, v, neg, bold) => { const d = document.createElement("div"); d.className = "cat"; d.style.cssText = "padding:2px 0;font-size:.9rem"; d.innerHTML = "<span></span><span></span>"; d.children[0].textContent = t; d.children[1].textContent = (neg ? "− " : "") + eur(v); if (!bold) d.children[1].style.color = neg ? "var(--ok)" : "var(--bad)"; else d.style.fontWeight = "700"; det.append(d); };
+    line("Dépenses fixes (compte commun)", cn.fxC);
+  cn.shared.forEach(g => line("Budget partagé · " + g.cat, g.amount));
+    cn.pays.forEach(w => line("À venir · " + w.label + (w.due ? " (" + fr(w.due) + ")" : ""), w.amount));
+    cn.ins.forEach(w => line("Crédit · " + w.label, w.amount, true));
+    if (cn.incF) line("Revenus fixes (compte commun)", cn.incF, true);
+  if (sh && cn.direct.Julien + cn.direct.Marie > 0.004) line("Déjà payé directement (Julien + Marie)", cn.direct.Julien + cn.direct.Marie, true);
+    const tot = sh.Julien + sh.Marie;
+    if (tot - (sh.rawJ + sh.rawM) > 0.004) line("Arrondi à la centaine supérieure", tot - (sh.rawJ + sh.rawM));
+    line("Total à répartir", tot, false, true);
+    line("Votre part (" + Math.round(sh.pct[person] * 100) + " %, arrondie)", sh[person], false, true);
+    $("cbDlgAmt").value = rest;
+    const done = v => { dlg.close(); res(v); };
+    $("cbDlgOk").onclick = () => { const v = parseFloat($("cbDlgAmt").value); if (!(v > 0)) { $("cbDlgAmt").focus(); return; } done(v); };
+    $("cbDlgLater").onclick = () => done(null);
+    dlg.oncancel = () => res(null);
+    dlgShow(dlg);
+  });
+}
+async function monthPopups() {
+  const cur = today.slice(0, 7), ix = jmIdx(), d = salaries[cur];
+  const mine = (me === "Julien" ? ix.j : ix.m), saved = ((d && d.p && d.p[mine]) || {}).a || 0;
+  if (!(saved > 0)) {
+    const k = snoozeKey("sal", cur, me);
+    if (isSnoozed(k)) return;
+    const v = await askSalary(me, cur);
+    if (v === null) { snooze(k); return; }
+    await saveSalValue(me, v, cur);
+  }
+  const sh = contribShares(cur); if (!sh) return;
+  const done = transfers.filter(t => t.month === cur && t.person === me).reduce((t, x) => t + x.amount, 0), rest = Math.round((sh[me] - done) * 100) / 100;
+  const k2 = snoozeKey("cb", cur, me);
+  if (!(rest > 0.5) || isSnoozed(k2)) return;
+  const v = await askContrib(me, cur, sh, commonNeed(cur), rest);
+  if (v === null) { snooze(k2); return; }
+  await addDoc(collection(db, "transfers"), { month: cur, person: me, amount: Math.round(v * 100) / 100, date: today, by: auth.currentUser.email, created: serverTimestamp() });
+}
+async function checkPopups() {
+  if (popupsShown || !auth.currentUser || !salLoaded || !transfersLoaded || !waitsLoaded || !fixedLoaded || profiles === null) return;
+  popupsShown = true;
+  me = profiles[emailKey(auth.currentUser.email)] || "";
+  updateMeBtn();
+  if (!me) me = await askWho();
+  if (!me) return;
+  try { await monthPopups(); } catch (e) { console.error(e); }
+}
+
+function acctFlow(A, x) {
+  const sum = l => l.reduce((t, e) => t + (e.amount || 0), 0);
+  const credits = sum(waits.filter(w => w.type === "in" && w.done && (w.doneDate || "").slice(0, 7) === x && accMatch(w, A)));
+  const spent = sum(histExp.filter(e => e.month === x && accMatch(e, A)));
+  const fx = fixed.filter(f => accMatch(f, A)).reduce((t, f) => t + (priceAt(f, x) || 0), 0);
+  if (A === "Commun") return sum(transfers.filter(t => t.month === x)) + incAcct("Commun", x) + credits - fx - spent;
+  const ix = jmIdx(), d = salaries[x], sal = ((d && d.p && d.p[A === "Julien" ? ix.j : ix.m]) || {}).a || 0;
+  return sal + incAcct(A, x) + credits - fx - spent - sum(transfers.filter(t => t.month === x && t.person === A));
+}
+function acctBalance(A, m) {
+  const mons = [...histExp.map(e => e.month), ...transfers.map(t => t.month), ...adjustments.map(a => a.month), ...Object.keys(salaries)].filter(Boolean).sort();
+  let bal = 0;
+  if (mons.length) for (let x = mons[0], i = 0; x <= m && i < 240; x = nmo(x, 1), i++) bal += acctFlow(A, x);
+  return bal + adjustments.filter(a => a.account === A && a.month <= m).reduce((t, a) => t + (a.amount || 0), 0);
+}
+function renderRecon() {
+  const m = $("month").value, box = $("reconRows"); if (!box || !m) return;
+  const ae = document.activeElement, typing = ae && box.contains(ae) && ae.tagName === "INPUT";
+  const fr = d => new Date(d).toLocaleDateString("fr-FR");
+  if (!typing) {
+    box.innerHTML = "";
+    ["Commun", "Julien", "Marie"].forEach(A => {
+      const bal = acctBalance(A, m), col = { Commun: "blanc", Julien: "bleu", Marie: "rose" }[A];
+      const row = document.createElement("div"); row.style.cssText = `border-left:4px solid var(--${col}-b);background:var(--${col});border-radius:8px;padding:10px;margin-top:8px`;
+      row.innerHTML = "<div class='cat' style='padding:0'><b></b><span class='mute' style='font-size:.85rem'></span></div><div class='row' style='margin-top:8px;align-items:center'><input type='number' step='0.01' placeholder='Solde réel sur la banque (€)'><button>Équilibrer</button></div><div style='font-size:.85rem;margin-top:6px'></div>";
+      row.children[0].children[0].textContent = (A === "Commun" ? "Compte commun" : "Compte " + A);
+      row.children[0].children[1].textContent = "Solde de l'appli : " + eur(bal);
+      const inp = row.querySelector("input"), btn = row.querySelector("button"), info = row.children[2];
+      const upd = () => {
+        const R = parseFloat(inp.value), ok = !isNaN(R), diff = ok ? Math.round((R - bal) * 100) / 100 : 0;
+        btn.disabled = !ok || Math.abs(diff) < 0.005;
+        info.textContent = !ok ? "" : Math.abs(diff) < 0.005 ? "✓ Équilibré" : `Écart : ${diff > 0 ? "+" : "−"}${eur(Math.abs(diff))} (${diff > 0 ? "plus d'argent sur la banque que dans l'appli" : "moins d'argent sur la banque que dans l'appli"})`;
+        info.style.color = !ok ? "var(--mute)" : Math.abs(diff) < 0.005 ? "var(--ok)" : diff > 0 ? "var(--ok)" : "var(--bad)";
+      };
+      if (reconDraft[A] !== undefined) inp.value = reconDraft[A];
+      inp.oninput = () => { reconDraft[A] = inp.value; upd(); };
+      btn.onclick = async () => {
+        const R = parseFloat(inp.value); if (isNaN(R)) return;
+        const diff = Math.round((R - bal) * 100) / 100; if (Math.abs(diff) < 0.005) return;
+        const ok = await askConfirm("Équilibrer le compte", [row.children[0].children[0].textContent, "Solde de l'appli : " + eur(bal), "Solde réel : " + eur(R), `Ajustement : ${diff > 0 ? "+" : "−"}${eur(Math.abs(diff))} (enregistré en ${monthLabel(m)})`], "Équilibrer");
+        if (!ok) return;
+        delete reconDraft[A];
+        await addDoc(collection(db, "adjustments"), { account: A, month: m, amount: diff, note: "Ajustement bancaire", date: today, by: auth.currentUser.email, created: serverTimestamp() });
+      };
+      upd(); box.append(row);
+    });
+  }
+  const ul = $("reconAdj"); ul.innerHTML = "";
+  if (!adjustments.length) ul.innerHTML = "<li class='mute'>Aucun ajustement pour l'instant.</li>";
+  adjustments.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).forEach(a => {
+    const li = document.createElement("li"), l = document.createElement("div"), r = document.createElement("span");
+    l.innerHTML = "<div></div><div class='mute' style='font-size:.8rem'></div>";
+    l.children[0].textContent = (a.account === "Commun" ? "Compte commun" : "Compte " + a.account);
+    l.children[1].textContent = `${fr(a.date)} · pour ${monthLabel(a.month)}`;
+    r.style.cssText = "display:flex;gap:8px;align-items:center";
+    const amt = document.createElement("b"); amt.textContent = (a.amount > 0 ? "+ " : "− ") + eur(Math.abs(a.amount)); amt.style.color = a.amount > 0 ? "var(--ok)" : "var(--bad)";
+    const u = document.createElement("button"); u.className = "ghost"; u.textContent = "Annuler"; u.onclick = () => confirm("Annuler cet ajustement ?") && deleteDoc(doc(db, "adjustments", a.id));
+    r.append(amt, u); li.append(l, r); ul.append(li);
+  });
+}
+
+const isSharedExp = e => {
+  if (e.account !== "Julien" && e.account !== "Marie") return false;
+  if (e.planId || e.category === "Courses" || e.category === "Jow") return true;
+  return !!commonEntry(e.category) && !ownersOf(e.category).includes(e.account);
+};
+const isCounted = e => !isSharedBudgetExp(e) && (e.account === "Julien" || e.account === "Marie") && !e.planId && (["Jow", "Animaux", "Fast Food", "Enfants"].includes(e.category) || (e.category === "Santé" && (e.forWho === "Kélia" || e.forWho === "Milio")));
+function monthDiff(x) {
+  const list = histExp.filter(e => e.month === x && isCounted(e)), sum = l => l.reduce((t, e) => t + e.amount, 0);
+  const fx = A => fixed.filter(f => f.account === A).reduce((t, f) => t + (priceAt(f, x) || 0), 0), fJ = fx("Julien"), fM = fx("Marie");
+  const pJ = sum(list.filter(e => e.account === "Julien")) + fJ, pM = sum(list.filter(e => e.account === "Marie")) + fM, tot = pJ + pM;
+  const sp = salPair(x), sal = sp ? sp.Julien + sp.Marie : 0, sJ = sal > 0 ? sp.Julien / sal : 0.5;
+  return { list, pJ, pM, fJ, fM, tot, sJ, diff: pJ - tot * sJ };
+}
+function renderBalance(m) {
+  if (!m) return;
+  const months = histExp.filter(isCounted).map(e => e.month).concat(settles.map(x => x.month), Object.keys(salaries)).filter(x => x <= m).sort();
+  let carry = 0, totAll = 0;
+  if (months.length) for (let x = months[0], i = 0; x < m && i < 240; x = nmo(x, 1), i++) { const d = monthDiff(x); carry += d.diff; totAll += d.tot; }
+  const cur = monthDiff(m); totAll += cur.tot;
+  let bal = carry + cur.diff;
+  settles.filter(x => x.month <= m).forEach(x => { bal += x.to === "Marie" ? x.amount : -x.amount; });
+  const fill = $("balFill"), pct = Math.max(-1, Math.min(1, bal / Math.max(totAll * 0.5, 100)));
+  if (pct > 0) fill.style.cssText = `position:absolute;top:0;bottom:0;left:${50 - pct * 50}%;width:${pct * 50}%;background:var(--bleu-b)`;
+  else fill.style.cssText = `position:absolute;top:0;bottom:0;left:50%;width:${-pct * 50}%;background:var(--rose-b)`;
+  const adv = v => v > 0.5 ? "Julien +" + eur0(v) : v < -0.5 ? "Marie +" + eur0(-v) : "0 €";
+  const T = $("balTxt"), equal = Math.abs(bal) < 0.5, A = bal > 0 ? "Julien" : "Marie", B = bal > 0 ? "Marie" : "Julien";
+  $("balVal").textContent = equal ? "0 €" : (bal > 0 ? "◀ " + eur0(bal) : eur0(-bal) + " ▶");
+  if (equal) { T.textContent = totAll > 0 || settles.length ? "Budgets équilibrés" : "Aucun budget payé par Julien ou Marie pour l'instant"; T.style.color = totAll > 0 || settles.length ? "var(--ok)" : "var(--mute)"; }
+  else { T.textContent = `${A} a ${eur0(Math.abs(bal))} d'avance sur ${B}`; T.style.color = bal > 0 ? "var(--bleu-b)" : "var(--rose-b)"; }
+  $("balSub2").textContent = `Report des mois précédents : ${adv(bal - cur.diff)} · ce mois-ci : ${adv(cur.diff)} · payé ce mois-ci : Julien ${eur0(cur.pJ)}, Marie ${eur0(cur.pM)} · part de Julien ${Math.round(cur.sJ * 100)} %`;
+  const det = $("balDet"); det.innerHTML = "";
+  const groups = {};
+  cur.list.forEach(e => { const k = e.category === "Santé" && e.forWho ? `Santé (${e.forWho})` : e.category; (groups[k] = groups[k] || { J: 0, M: 0 })[e.account === "Julien" ? "J" : "M"] += e.amount; });
+  if (cur.fJ + cur.fM > 0) groups["Dépenses fixes (comptes perso)"] = { J: cur.fJ, M: cur.fM };
+  Object.keys(groups).sort().forEach(k => {
+    const g = groups[k], spent = g.J + g.M, budget = commonEntry(k) ? estAmt(commonEntry(k)) : 0;
+    const label = `${k} (Julien ${eur0(g.J)} · Marie ${eur0(g.M)})`;
+    if (budget > 0) det.append(miniGauge(label, spent, budget));
+    else { const d = document.createElement("div"); d.className = "cat"; d.style.fontSize = ".85rem"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = label; d.children[1].textContent = eur0(spent); d.children[1].style.fontWeight = 400; det.append(d); }
+  });
+  if (!Object.keys(groups).length) det.innerHTML = '<div class="mute">Aucune dépense comptée dans l’équilibre ce mois-ci (Jow, animaux, fast food, enfants, santé de Kélia et Milio, dépenses fixes des comptes personnels).</div>';
+}
+
+function legacyJowBudget(m) {
+  if (foodB[m] != null) return foodB[m];
+  const ks = Object.keys(foodB).filter(k => k < m).sort();
+  return ks.length ? foodB[ks[ks.length - 1]] : 450;
+}
+
+function salAvg(m) {
+  const ks = Object.keys(salaries).filter(k => k < m && salaries[k].p && salaries[k].p.some(x => x.a > 0)).sort().slice(-12);
+  if (!ks.length) return null;
+  const a = [0, 1].map(i => { const v = ks.map(k => (salaries[k].p[i] || {}).a || 0).filter(x => x > 0); return v.length ? v.reduce((t, x) => t + x, 0) / v.length : 0; });
+  return { a, n: ks.length };
+}
+
+function fillSplit() {
+  if (splitDirty) return;
+  const m = $("month").value, d = salaries[m];
+  let src = d;
+  if (!d) { const ks = Object.keys(salaries).filter(k => k < m).sort(); if (ks.length) src = salaries[ks[ks.length - 1]]; }
+  const p = (src && src.p) || [];
+  $("s1n").value = p[0] ? p[0].n : ""; $("s1a").value = d && p[0] && p[0].a ? p[0].a : "";
+  $("s2n").value = p[1] ? p[1].n : ""; $("s2a").value = d && p[1] && p[1].a ? p[1].a : "";
+  $("sHint").textContent = d ? "Salaires enregistrés pour ce mois." : "Salaires de ce mois à saisir : ils changent chaque mois.";
+  renderSplit();
+}
+
+function renderSplit() {
+  const m = $("month").value;
+  const si0 = salInfo(m), have = !!(si0 && !si0.estJ && !si0.estM);
+  const due = salLoaded && !have && m <= today.slice(0, 7), avg = salAvg(m);
+  $("sNotice").hidden = !due;
+  $("sNotice").firstElementChild.textContent = avg ? "⚠️ Pensez à saisir les salaires exacts de ce mois : en attendant, la moyenne des mois précédents est utilisée pour les calculs." : "⚠️ Les salaires de ce mois ne sont pas encore saisis : le calcul du reste et de la répartition n'est pas possible.";
+  document.querySelector('nav [data-t="split"]').textContent = "Répartition" + (due ? " •" : "");
+  $("s1a").placeholder = avg && avg.a[0] ? `Moyenne ${eur0(avg.a[0])} · saisir le salaire exact (€)` : "Salaire net (€)";
+  $("s2a").placeholder = avg && avg.a[1] ? `Moyenne ${eur0(avg.a[1])} · saisir le salaire exact (€)` : "Salaire net (€)";
+  const fx = fixed.filter(f => f.account !== "Julien" && f.account !== "Marie").reduce((t, f) => t + (priceAt(f, m) || 0), 0);
+  const cn = commonNeed(m), incCm = cn.incF, need = cn.total;
+  let a = [parseFloat($("s1a").value) || 0, parseFloat($("s2a").value) || 0], estNote = "";
+  if (avg && (!(a[0] > 0) || !(a[1] > 0))) { a = a.map((v, i) => v > 0 ? v : (avg.a[i] || 0)); estNote = `Salaire manquant remplacé par la moyenne des ${avg.n} mois précédent(s). Saisissez le salaire exact pour valider.`; }
+  const n = [$("s1n").value.trim() || "Personne 1", $("s2n").value.trim() || "Personne 2"];
+  const row = (t, v, bold) => { const d = document.createElement("div"); d.className = "cat"; d.innerHTML = "<span></span><b></b>"; d.children[0].textContent = t; d.children[1].textContent = v; if (!bold) d.children[1].style.fontWeight = 400; return d; };
+  $("sNeed").innerHTML = "";
+  $("sNeed").append(row("Dépenses fixes du compte commun", eur(fx)));
+  cn.shared.forEach(g => $("sNeed").append(row("Budget partagé · " + g.cat, eur(g.amount))));
+  if (cn.direct.Julien + cn.direct.Marie > 0.004) $("sNeed").append(row("Déjà payé directement (Julien + Marie), déduit", "− " + eur(cn.direct.Julien + cn.direct.Marie)));
+  if (cn.payT) $("sNeed").append(row("Paiements à venir (compte commun)", eur(cn.payT)));
+  if (cn.inT) $("sNeed").append(row("Crédits (compte commun, déduits)", "− " + eur(cn.inT)));
+  if (incCm) $("sNeed").append(row("Revenus fixes du compte commun (déduits)", "− " + eur(incCm)));
+  $("sNeed").append(row("Total à répartir", eur(need), true));
+  const nt = document.createElement("div"); nt.className = "mute"; nt.style.cssText = "font-size:.8rem;margin-top:6px";
+  nt.textContent = "Les montants à verser sont arrondis à la centaine supérieure et répartis au prorata des salaires. Le compte commun sert aux dépenses fixes, aux paiements à venir de ce compte et aux budgets partagés (Jow, enfants…). Les budgets personnels et les dépenses prévues se paient depuis les comptes personnels.";
+  $("sNeed").append(nt);
+  $("sRes").innerHTML = "";
+  const tot = a[0] + a[1];
+  if (!(tot > 0)) { $("sBar").style.width = "0"; $("sRes").textContent = "Saisissez les salaires pour voir la répartition."; return; }
+  if (estNote) { const p = document.createElement("div"); p.className = "mute"; p.textContent = estNote; $("sRes").append(p); }
+  const c0 = Math.round(need * a[0] / tot * 100) / 100, c = [Math.max(0, c0 - cn.direct.Julien), Math.max(0, Math.round((need - c0) * 100) / 100 - cn.direct.Marie)].map(roundUp100);
+  $("sBar").style.width = (a[0] / tot * 100) + "%";
+  a.forEach((v, i) => {
+    const box = document.createElement("div"); box.style.cssText = "border-top:1px solid var(--line);margin-top:12px;padding-top:10px";
+    const t = document.createElement("div"); t.style.fontWeight = "700"; t.textContent = n[i];
+    box.append(t, row("Salaire", eur(v)), row("Part du total des salaires", (v / tot * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " %"),
+      row("À verser sur le compte commun", eur(c[i]), true), row("Reste pour soi", eur(v - c[i])));
+    $("sRes").append(box);
+  });
+}
+
+["s1n", "s1a", "s2n", "s2a"].forEach(id => $(id).oninput = () => { splitDirty = true; renderSplit(); });
+$("btnSplit").onclick = async () => {
+  await setDoc(doc(db, "salaries", $("month").value), {
+    p: [{ n: $("s1n").value.trim(), a: parseFloat($("s1a").value) || 0 }, { n: $("s2n").value.trim(), a: parseFloat($("s2a").value) || 0 }]
+  });
+  splitDirty = false;
+};
+
+$("btnGoSplit").onclick = () => document.querySelector('nav [data-t="split"]').click();
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  if (editId) resetFixedForm();
+  closePlan(); if (planEditId) resetPlanForm();
+  curId = null; incCurId = null; acctName = null; if (incEditId) resetIncForm(); show({ month: "tabMonth", fixed: "tabFixed", planned: "tabPlanned", estimated: "tabEstimated", split: "tabSplit" }[b.dataset.t]);
+});
+</script>
+</body>
+</html>
